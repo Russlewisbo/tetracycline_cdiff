@@ -704,6 +704,48 @@ segnale protettivo, benché l'intervallo di credibilità includa ancora OR = 1.
 :::
 :::
 
+```{r fig-doxy, fig.width=7.5, fig.height=4}
+doxy_studies <- prim_abx |>
+  dplyr::filter(exposure_class == "doxycycline") |>
+  transmute(label = reference, type = "Doxycycline study (observed)",
+            OR = exp(yi), OR_lo = exp(yi - 1.96 * sei), OR_hi = exp(yi + 1.96 * sei))
+pooled_rows <- tibble(
+  label = c("Doxycycline only (pooled, k = 6)", "All tetracyclines (pooled, k = 11)"),
+  type  = "Pooled estimate",
+  OR    = c(D$OR, P$OR), OR_lo = c(D$OR_lo, P$OR_lo), OR_hi = c(D$OR_hi, P$OR_hi))
+lev <- c("All tetracyclines (pooled, k = 11)", "Doxycycline only (pooled, k = 6)",
+         doxy_studies |> arrange(desc(OR)) |> pull(label))
+bind_rows(doxy_studies, pooled_rows) |>
+  mutate(label = factor(label, levels = lev),
+         type  = factor(type, levels = c("Doxycycline study (observed)", "Pooled estimate"))) |>
+  ggplot(aes(OR, label, colour = type)) +
+  annotate("rect", xmin = D$OR_lo, xmax = D$OR_hi, ymin = -Inf, ymax = Inf,
+           fill = jama_band, alpha = 0.4) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), size = 0.45) +
+  scale_colour_manual(values = c("Doxycycline study (observed)" = jama_gray,
+                                 "Pooled estimate" = jama_navy)) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4)) +
+  labs(x = "Odds ratio (log scale)", y = NULL, colour = NULL) +
+  theme_jama()
+```
+
+::: {.cap}
+::: {.en}
+**Figure 5.** Forest plot of the doxycycline-only sensitivity analysis. Gray points are the
+six doxycycline-exposure studies (observed ORs, 95% CIs); navy points are the pooled Bayesian
+estimates for the doxycycline-only subset (k = 6) and the full primary set (k = 11). The
+shaded band is the doxycycline-only 95% credible interval; the dashed line marks OR = 1.
+:::
+::: {.it}
+**Figura 5.** Forest plot dell'analisi di sensibilità sulla sola doxiciclina. I punti grigi
+sono i sei studi con esposizione a doxiciclina (OR osservati, IC 95%); i punti navy sono le
+stime bayesiane aggregate per il sottoinsieme doxiciclina (k = 6) e per il set primario
+completo (k = 11). La banda ombreggiata è l'intervallo di credibilità al 95% della sola
+doxiciclina; la linea tratteggiata indica OR = 1.
+:::
+:::
+
 ## [Secondary comparison: vs no antibiotic (9 studies)]{.en}[Confronto secondario: vs nessun antibiotico (9 studi)]{.it}
 
 ::: {.en}
@@ -802,10 +844,10 @@ bind_rows(ctx |> mutate(set = "Primary (k=11)"),
 
 ::: {.cap}
 ::: {.en}
-**Figure 5.** Care-context pooled ORs from the Bayesian meta-regression: primary antibiotic-comparator set (k = 11, blue) with full-set sensitivity (k = 20, gray).
+**Figure 6.** Care-context pooled ORs from the Bayesian meta-regression: primary antibiotic-comparator set (k = 11, blue) with full-set sensitivity (k = 20, gray).
 :::
 ::: {.it}
-**Figura 5.** OR aggregati per contesto dalla meta-regressione bayesiana: set primario con comparatore antibiotico (k = 11, blu) e sensibilità sul set completo (k = 20, grigio).
+**Figura 6.** OR aggregati per contesto dalla meta-regressione bayesiana: set primario con comparatore antibiotico (k = 11, blu) e sensibilità sul set completo (k = 20, grigio).
 :::
 :::
 
@@ -866,10 +908,10 @@ comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
 
 ::: {.cap}
 ::: {.en}
-**Figure 6.** From Tariq to the updated review: recapitulation and stepwise decomposition of the difference.
+**Figure 7.** From Tariq to the updated review: recapitulation and stepwise decomposition of the difference.
 :::
 ::: {.it}
-**Figura 6.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
+**Figura 7.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
 :::
 :::
 
