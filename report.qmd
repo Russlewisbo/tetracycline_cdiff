@@ -283,13 +283,13 @@ prim |>
 **Table 1.** Characteristics of the 20 studies contributing to the Bayesian synthesis
 (11 vs other antibiotics; 9 vs no antibiotic; ordered by odds ratio). N = analytic sample
 size (NR = not reported); Adj. = adjusted estimate. The OR is the single curated effect size
-carried into the meta-analysis; citations resolve to `references.bib`.
+carried into the meta-analysis; each study is identified by its bibliographic citation.
 :::
 ::: {.it}
 **Tabella 1.** Caratteristiche dei 20 studi nella sintesi bayesiana (11 vs altri antibiotici;
 9 vs nessun antibiotico; ordinati per odds ratio). N = dimensione campionaria analitica
 (NR = non riportata); Adj. = stima aggiustata. L'OR è la singola stima d'effetto curata
-usata nella meta-analisi; le citazioni rimandano a `references.bib`.
+usata nella meta-analisi; ogni studio è identificato dalla relativa citazione bibliografica.
 :::
 :::
 
