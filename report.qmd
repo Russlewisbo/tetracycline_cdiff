@@ -630,21 +630,10 @@ loo |> arrange(OR) |> mutate(dropped = factor(dropped, levels = dropped)) |>
 ## [Doxycycline-only sensitivity analysis]{.en}[Analisi di sensibilità: sola doxiciclina]{.it}
 
 ```{r doxy-sens}
-# Restrict the primary antibiotic-comparator set (k = 11) to doxycycline-exposure
-# studies, keeping the primary prior. Pre-specified sensitivity analysis.
-doxy_abx <- prim_abx |> dplyr::filter(exposure_class == "doxycycline")
-fit_doxy <- fit_subset(doxy_abx)
-D <- list(
-  k       = nrow(doxy_abx),
-  OR      = exp(fit_doxy$summary["median",    "mu"]),
-  OR_lo   = exp(fit_doxy$summary["95% lower", "mu"]),
-  OR_hi   = exp(fit_doxy$summary["95% upper", "mu"]),
-  tau     = fit_doxy$summary["median", "tau"],
-  P1      = fit_doxy$pposterior(mu = log(1)),
-  P08     = fit_doxy$pposterior(mu = log(0.80)),
-  pred_lo = exp(fit_doxy$summary["95% lower", "theta"]),
-  pred_hi = exp(fit_doxy$summary["95% upper", "theta"])
-)
+# Pre-specified sensitivity analysis: the primary antibiotic-comparator set (k = 11)
+# restricted to doxycycline-exposure studies, keeping the primary prior. Reuses the
+# doxycycline row already computed in `res_sub` (see setup).
+D <- as.list(res_sub[res_sub$analysis == "doxycycline", ])
 ```
 
 ::: {.en}
@@ -652,7 +641,7 @@ Doxycycline is the dominant tetracycline in the evidence base and the agent most
 invoked for anaerobe-sparing activity, so we pre-specified a sensitivity analysis restricting
 the primary antibiotic-comparator set to doxycycline-exposure studies (k = `r D$k`), keeping
 the primary prior. The pooled odds ratio is **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** with
-P(OR<1) = `r sprintf("%.2f", D$P1)` and P(OR<0.80) = `r sprintf("%.2f", D$P08)`. Restricting
+P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)` and P(OR<0.80) = `r sprintf("%.2f", D$P_OR_lt_080)`. Restricting
 to a single agent roughly halves the between-study heterogeneity
 (τ = `r sprintf("%.2f", D$tau)` vs `r sprintf("%.2f", P$tau)` in the full primary set) and
 tightens the predictive interval for a new study to OR
@@ -665,8 +654,8 @@ La doxiciclina è la tetraciclina prevalente nella base di evidenze e l'agente p
 citato per l'attività di risparmio degli anaerobi; abbiamo quindi pre-specificato un'analisi
 di sensibilità che limita il set primario con comparatore antibiotico agli studi con
 esposizione a doxiciclina (k = `r D$k`), mantenendo il prior primario. L'odds ratio aggregato
-è **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** con P(OR<1) = `r sprintf("%.2f", D$P1)` e
-P(OR<0,80) = `r sprintf("%.2f", D$P08)`. Limitarsi a un singolo agente dimezza circa
+è **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** con P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)` e
+P(OR<0,80) = `r sprintf("%.2f", D$P_OR_lt_080)`. Limitarsi a un singolo agente dimezza circa
 l'eterogeneità tra studi (τ = `r sprintf("%.2f", D$tau)` vs `r sprintf("%.2f", P$tau)` nel set
 primario completo) e restringe l'intervallo predittivo per un nuovo studio a OR
 `r sprintf("%.2f\u2013%.2f", D$pred_lo, D$pred_hi)`. La stima per la doxiciclina è più precisa
@@ -682,8 +671,8 @@ tibble(
   `Studies (k)` = c(nrow(prim_abx), D$k),
   `OR (95% CrI)` = c(fmt_ci(P$OR, P$OR_lo, P$OR_hi), fmt_ci(D$OR, D$OR_lo, D$OR_hi)),
   `τ` = sprintf("%.2f", c(P$tau, D$tau)),
-  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P1)),
-  `P(OR<0.80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P08))
+  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P_OR_lt_1)),
+  `P(OR<0.80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P_OR_lt_080))
 ) |>
   kable(align = "lccccc")
 ```
@@ -695,8 +684,8 @@ tibble(
   `Studi (k)` = c(nrow(prim_abx), D$k),
   `OR (ICr 95%)` = c(fmt_ci(P$OR, P$OR_lo, P$OR_hi), fmt_ci(D$OR, D$OR_lo, D$OR_hi)),
   `τ` = sprintf("%.2f", c(P$tau, D$tau)),
-  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P1)),
-  `P(OR<0,80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P08))
+  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P_OR_lt_1)),
+  `P(OR<0,80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P_OR_lt_080))
 ) |>
   kable(align = "lccccc")
 ```
@@ -918,7 +907,7 @@ modest harm. Against a *no-antibiotic* comparator the association is essentially
 (`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), and a confidently protective reading emerges only
 under a prior anchored on the older Tariq (2018) estimate — that is, it is driven by prior
 belief, not the new data. The doxycycline-restricted sensitivity analysis is the most
-encouraging signal (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`, P(OR<1) = `r sprintf("%.2f", D$P1)`),
+encouraging signal (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`, P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)`),
 but its interval still touches 1.
 
 **Is tetracycline preferable to macrolides or other agents to reduce CDI?** Not on this
@@ -961,7 +950,7 @@ sostanzialmente nulla (`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), e una lettura 
 protettiva emerge solo con un prior ancorato alla stima precedente di Tariq (2018) — cioè è
 guidata dalla convinzione a priori, non dai nuovi dati. L'analisi di sensibilità limitata alla
 doxiciclina è il segnale più incoraggiante (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`,
-P(OR<1) = `r sprintf("%.2f", D$P1)`), ma il suo intervallo tocca ancora 1.
+P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)`), ma il suo intervallo tocca ancora 1.
 
 **Le tetracicline sono preferibili ai macrolidi o ad altri agenti per ridurre l'ICD?** Non
 sulla base di queste evidenze. Primo, nessuno studio incluso fornisce un confronto diretto
