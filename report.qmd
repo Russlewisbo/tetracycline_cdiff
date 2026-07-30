@@ -627,6 +627,94 @@ loo |> arrange(OR) |> mutate(dropped = factor(dropped, levels = dropped)) |>
 :::
 :::
 
+## [Doxycycline-only sensitivity analysis]{.en}[Analisi di sensibilità: sola doxiciclina]{.it}
+
+```{r doxy-sens}
+# Restrict the primary antibiotic-comparator set (k = 11) to doxycycline-exposure
+# studies, keeping the primary prior. Pre-specified sensitivity analysis.
+doxy_abx <- prim_abx |> dplyr::filter(exposure_class == "doxycycline")
+fit_doxy <- fit_subset(doxy_abx)
+D <- list(
+  k       = nrow(doxy_abx),
+  OR      = exp(fit_doxy$summary["median",    "mu"]),
+  OR_lo   = exp(fit_doxy$summary["95% lower", "mu"]),
+  OR_hi   = exp(fit_doxy$summary["95% upper", "mu"]),
+  tau     = fit_doxy$summary["median", "tau"],
+  P1      = fit_doxy$pposterior(mu = log(1)),
+  P08     = fit_doxy$pposterior(mu = log(0.80)),
+  pred_lo = exp(fit_doxy$summary["95% lower", "theta"]),
+  pred_hi = exp(fit_doxy$summary["95% upper", "theta"])
+)
+```
+
+::: {.en}
+Doxycycline is the dominant tetracycline in the evidence base and the agent most often
+invoked for anaerobe-sparing activity, so we pre-specified a sensitivity analysis restricting
+the primary antibiotic-comparator set to doxycycline-exposure studies (k = `r D$k`), keeping
+the primary prior. The pooled odds ratio is **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** with
+P(OR<1) = `r sprintf("%.2f", D$P1)` and P(OR<0.80) = `r sprintf("%.2f", D$P08)`. Restricting
+to a single agent roughly halves the between-study heterogeneity
+(τ = `r sprintf("%.2f", D$tau)` vs `r sprintf("%.2f", P$tau)` in the full primary set) and
+tightens the predictive interval for a new study to OR
+`r sprintf("%.2f\u2013%.2f", D$pred_lo, D$pred_hi)`. The doxycycline estimate is more precise
+and more consistently below 1 than the all-tetracycline estimate, but its 95% credible
+interval still touches 1 — a stronger, yet still not definitive, protective signal.
+:::
+::: {.it}
+La doxiciclina è la tetraciclina prevalente nella base di evidenze e l'agente più spesso
+citato per l'attività di risparmio degli anaerobi; abbiamo quindi pre-specificato un'analisi
+di sensibilità che limita il set primario con comparatore antibiotico agli studi con
+esposizione a doxiciclina (k = `r D$k`), mantenendo il prior primario. L'odds ratio aggregato
+è **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** con P(OR<1) = `r sprintf("%.2f", D$P1)` e
+P(OR<0,80) = `r sprintf("%.2f", D$P08)`. Limitarsi a un singolo agente dimezza circa
+l'eterogeneità tra studi (τ = `r sprintf("%.2f", D$tau)` vs `r sprintf("%.2f", P$tau)` nel set
+primario completo) e restringe l'intervallo predittivo per un nuovo studio a OR
+`r sprintf("%.2f\u2013%.2f", D$pred_lo, D$pred_hi)`. La stima per la doxiciclina è più precisa
+e più costantemente inferiore a 1 rispetto alla stima su tutte le tetracicline, ma il suo
+intervallo di credibilità al 95% tocca ancora 1 — un segnale protettivo più forte, ma non
+ancora definitivo.
+:::
+
+::: {.en}
+```{r tbl-doxy-en}
+tibble(
+  Analysis = c("All tetracyclines (primary)", "Doxycycline only"),
+  `Studies (k)` = c(nrow(prim_abx), D$k),
+  `OR (95% CrI)` = c(fmt_ci(P$OR, P$OR_lo, P$OR_hi), fmt_ci(D$OR, D$OR_lo, D$OR_hi)),
+  `τ` = sprintf("%.2f", c(P$tau, D$tau)),
+  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P1)),
+  `P(OR<0.80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P08))
+) |>
+  kable(align = "lccccc")
+```
+:::
+::: {.it}
+```{r tbl-doxy-it}
+tibble(
+  Analisi = c("Tutte le tetracicline (primario)", "Solo doxiciclina"),
+  `Studi (k)` = c(nrow(prim_abx), D$k),
+  `OR (ICr 95%)` = c(fmt_ci(P$OR, P$OR_lo, P$OR_hi), fmt_ci(D$OR, D$OR_lo, D$OR_hi)),
+  `τ` = sprintf("%.2f", c(P$tau, D$tau)),
+  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P1)),
+  `P(OR<0,80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P08))
+) |>
+  kable(align = "lccccc")
+```
+:::
+
+::: {.cap}
+::: {.en}
+**Table 2.** Doxycycline-only sensitivity analysis versus the full primary set. Restricting
+to doxycycline exposure lowers heterogeneity and sharpens the protective signal, though the
+credible interval still includes OR = 1.
+:::
+::: {.it}
+**Tabella 2.** Analisi di sensibilità sulla sola doxiciclina rispetto al set primario
+completo. Limitarsi all'esposizione a doxiciclina riduce l'eterogeneità e rende più netto il
+segnale protettivo, benché l'intervallo di credibilità includa ancora OR = 1.
+:::
+:::
+
 ## [Secondary comparison: vs no antibiotic (9 studies)]{.en}[Confronto secondario: vs nessun antibiotico (9 studi)]{.it}
 
 ::: {.en}
@@ -814,6 +902,98 @@ posteriori di una riduzione rilevante, ma l'intervallo di credibilità include a
 l'assenza di effetto e l'eterogeneità è sostanziale. Una conclusione decisamente protettiva
 emerge solo con un forte prior basato sulla letteratura. Questi risultati distinguono un
 plausibile *minor rischio associato* da una *terapia protettiva* consolidata.
+:::
+
+## [Discussion]{.en}[Discussione]{.it}
+
+::: {.en}
+**What these results mean.** Restricted to the protocol comparator (another antibiotic), the
+pooled odds ratio is `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`, with roughly a
+`r sprintf("%.0f", 100*P$P_OR_lt_1)`% posterior probability of *any* protection but only
+`r sprintf("%.0f", 100*P$P_OR_lt_080)`% for a clinically meaningful effect (OR < 0.80). The
+dominant feature is heterogeneity (τ = `r sprintf("%.2f", P$tau)`): the predictive interval
+for a new study spans OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`, so a
+well-conducted future study could plausibly land anywhere from meaningful protection to
+modest harm. Against a *no-antibiotic* comparator the association is essentially null
+(`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), and a confidently protective reading emerges only
+under a prior anchored on the older Tariq (2018) estimate — that is, it is driven by prior
+belief, not the new data. The doxycycline-restricted sensitivity analysis is the most
+encouraging signal (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`, P(OR<1) = `r sprintf("%.2f", D$P1)`),
+but its interval still touches 1.
+
+**Is tetracycline preferable to macrolides or other agents to reduce CDI?** Not on this
+evidence. First, no included study provides a head-to-head tetracycline-versus-macrolide
+comparison; the comparator is a heterogeneous mix of "other antibiotics", so a
+macrolide-specific preference would be an extrapolation. Second, the pooled effect is
+uncertain (credible interval crossing 1, substantial heterogeneity). Third, the protective
+interpretation is fragile, depending on prior belief. The defensible statement is narrower:
+tetracyclines — particularly doxycycline — are biologically plausible lower-CDI-risk agents
+and are unlikely to be worse than typical comparators, with a *possible* modest advantage.
+That can reasonably inform stewardship *when the spectrum required is genuinely equivalent*,
+but it does not meet the bar for a formal recommendation to prefer them, and certainly not
+specifically over macrolides.
+
+**Implications for future studies.**
+
+- Use active-comparator, new-user cohort designs (or target-trial emulation) with an
+  explicit, clinically matched comparator — e.g. doxycycline vs a macrolide for
+  community-acquired pneumonia — rather than pooling against undifferentiated "other antibiotics".
+- Reduce confounding by indication: adjust for or match on prior CDI, PPI use, hospitalisation,
+  age and comorbidity; treat case-control evidence cautiously given its design-related divergence.
+- Standardise CDI ascertainment (testing protocols, exposure and outcome windows) so
+  heterogeneity reflects biology rather than measurement.
+- Analyse by agent (doxycycline vs minocycline vs tigecycline) to isolate the doxycycline signal.
+- Pre-register and report completely to limit publication bias, and consider
+  individual-participant-data meta-analysis to resolve the heterogeneity the predictive interval exposes.
+- Where clinically and ethically appropriate, a pragmatic randomised trial with CDI as a
+  pre-specified secondary outcome would provide the confirmatory evidence observational data cannot.
+:::
+::: {.it}
+**Cosa significano questi risultati.** Limitandosi al comparatore del protocollo (un altro
+antibiotico), l'odds ratio aggregato è `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`, con circa il
+`r sprintf("%.0f", 100*P$P_OR_lt_1)`% di probabilità a posteriori di un *qualsiasi* effetto
+protettivo ma solo il `r sprintf("%.0f", 100*P$P_OR_lt_080)`% per un effetto clinicamente
+rilevante (OR < 0,80). L'elemento dominante è l'eterogeneità (τ = `r sprintf("%.2f", P$tau)`):
+l'intervallo predittivo per un nuovo studio va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`,
+quindi uno studio futuro ben condotto potrebbe collocarsi ovunque, da una protezione rilevante
+a un modesto danno. Rispetto a un comparatore *senza antibiotico* l'associazione è
+sostanzialmente nulla (`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), e una lettura decisamente
+protettiva emerge solo con un prior ancorato alla stima precedente di Tariq (2018) — cioè è
+guidata dalla convinzione a priori, non dai nuovi dati. L'analisi di sensibilità limitata alla
+doxiciclina è il segnale più incoraggiante (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`,
+P(OR<1) = `r sprintf("%.2f", D$P1)`), ma il suo intervallo tocca ancora 1.
+
+**Le tetracicline sono preferibili ai macrolidi o ad altri agenti per ridurre l'ICD?** Non
+sulla base di queste evidenze. Primo, nessuno studio incluso fornisce un confronto diretto
+tetraciclina-vs-macrolide; il comparatore è un insieme eterogeneo di "altri antibiotici",
+perciò una preferenza specifica sui macrolidi sarebbe un'estrapolazione. Secondo, l'effetto
+aggregato è incerto (intervallo di credibilità che attraversa 1, eterogeneità sostanziale).
+Terzo, l'interpretazione protettiva è fragile e dipende dalla convinzione a priori.
+L'affermazione difendibile è più circoscritta: le tetracicline — in particolare la
+doxiciclina — sono agenti biologicamente plausibili a minor rischio di ICD ed è improbabile
+che siano peggiori dei comparatori abituali, con un *possibile* modesto vantaggio. Ciò può
+ragionevolmente orientare la stewardship *quando lo spettro richiesto è realmente
+equivalente*, ma non raggiunge la soglia per una raccomandazione formale a preferirle, e
+certamente non specificamente rispetto ai macrolidi.
+
+**Implicazioni per gli studi futuri.**
+
+- Usare disegni di coorte active-comparator, new-user (o emulazione di target trial) con un
+  comparatore esplicito e clinicamente confrontabile — es. doxiciclina vs un macrolide nella
+  polmonite acquisita in comunità — invece di aggregare contro "altri antibiotici" indistinti.
+- Ridurre il confondimento da indicazione: aggiustare o appaiare per ICD pregressa, uso di
+  IPP, ospedalizzazione, età e comorbidità; trattare con cautela le evidenze caso-controllo
+  data la divergenza legata al disegno.
+- Standardizzare l'accertamento dell'ICD (protocolli di test, finestre di esposizione ed
+  esito) affinché l'eterogeneità rifletta la biologia e non la misurazione.
+- Analizzare per agente (doxiciclina vs minociclina vs tigeciclina) per isolare il segnale
+  della doxiciclina.
+- Pre-registrare e riportare in modo completo per limitare il publication bias, e valutare
+  una meta-analisi su dati individuali dei partecipanti per risolvere l'eterogeneità che
+  l'intervallo predittivo evidenzia.
+- Ove clinicamente ed eticamente appropriato, uno studio randomizzato pragmatico con l'ICD
+  come esito secondario pre-specificato fornirebbe la conferma che i dati osservazionali non
+  possono dare.
 :::
 
 ::: {.callout-warning}
