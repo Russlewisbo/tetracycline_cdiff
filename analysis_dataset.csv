@@ -1,0 +1,21 @@
+study,study_id,yi,sei,OR,design,care,comparator,adjusted,exposure,drug_class,method
+Watson 2018,Watson2018,-0.9339,0.1291,0.393,retrospective_cohort,HA,reference_category,True,tetracycline_class,tetracycline_class,reported_adjusted
+Baxter 2008,Baxter2008,-0.8916,0.2217,0.41,matched_case_control,HA,reference_category,True,doxycycline,doxycycline,reported_adjusted
+Ström 2017,Strom2017,-0.5108,0.7373,0.6,matched_case_control,mixed,no_antibiotic,False,tetracycline,tetracycline,reported_unadjusted
+Webb 2020,Webb2020,-0.5108,0.3071,0.6,retrospective_cohort,HA,reference_category,True,doxycycline,doxycycline,reported_adjusted
+Doernberg 2012,Doernberg2012,-0.3147,0.1375,0.73,retrospective_cohort,mixed,specific_comparator,True,doxycycline,doxycycline,reported_adjusted
+Tilton 2019,Tilton2019,-0.2731,0.5251,0.761,matched_case_control,HA,no_antibiotic,False,doxycycline,doxycycline,two_by_two
+O'Leary 2023,OLeary2023,-0.1863,0.0884,0.83,retrospective_cohort,HA,specific_comparator,True,doxycycline,doxycycline,reported_adjusted
+Tartof 2015,Tartof2015,-0.1792,0.1405,0.836,retrospective_cohort,HA,no_antibiotic,False,tetracycline_class,tetracycline_class,two_by_two
+Delaney 2007,Delaney2007,-0.1054,0.2803,0.9,matched_case_control,CA,no_antibiotic,True,tetracycline_class,tetracycline_class,reported_adjusted
+Boven 2026,Boven2026,-0.0726,0.0798,0.93,matched_case_control,mixed,reference_category,True,tetracycline_class,tetracycline_class,reported_adjusted
+Carmichael 2023,Carmichael2023,-0.0619,0.0272,0.94,retrospective_cohort,mixed,reference_category,True,doxycycline,doxycycline,reported_adjusted
+Kuntz 2011,Kuntz2011,-0.0619,0.3972,0.94,nested_case_control,CA,reference_category,True,tetracycline_class,tetracycline_class,reported_adjusted
+Miller 2023,Miller2023,-0.0408,0.0348,0.96,matched_case_control,CA,reference_category,True,doxycycline,doxycycline,reported_adjusted
+Guh 2015,Guh2015,0.0,0.75,1.0,matched_case_control,CA,no_antibiotic,False,tetracycline,tetracycline,reported_matched
+Dial 2008,Dial2008,0.0953,1.1363,1.1,matched_case_control,CA,no_antibiotic,True,tetracycline_class,tetracycline_class,reported_adjusted
+Adams 2017,Adams2017,0.2311,0.5133,1.26,matched_case_control,CA,reference_category,True,tetracycline_class,tetracycline_class,reported_adjusted
+Brown 2016,Brown2016,0.2311,0.1954,1.26,nested_case_control,HA,no_antibiotic,True,tetracycline,tetracycline,reported_adjusted
+Predrag 2016,Predrag2016,0.3019,0.9359,1.352,matched_case_control,HA,no_antibiotic,False,tetracycline_class,tetracycline_class,two_by_two
+Yu 2021,Yu2021,1.0647,0.398,2.9,matched_case_control,HA,no_antibiotic,False,tetracycline,tetracycline,reported_unadjusted
+Saito 2025,Saito2025,1.0886,0.1013,2.97,nested_case_control,mixed,reference_category,True,tetracycline_class,tetracycline_class,reported_adjusted

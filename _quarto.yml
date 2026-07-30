@@ -1,0 +1,22 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+    - report.qmd
+
+website:
+  title: "Tetracyclines & C. difficile"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: report.qmd
+        text: Meta-analysis report
+  page-footer:
+    left: "Bayesian meta-analysis · thesis-stage evidence synthesis"
+
+format:
+  html:
+    theme: cosmo
+    toc: false

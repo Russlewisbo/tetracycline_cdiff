@@ -1,0 +1,7 @@
+study,year,design,location,care_context,tetracycline,comparator,cdi_definition,exposure_window_days,logOR,SE,OR,ci_low,ci_high,weight_pct,in_our_extraction
+Baxter,2008,Case-control (retrospective),United States,HA (inpatient),Doxycycline,Other antibiotics (non-tetracycline),Diarrhea plus positive CDI toxin (ELISA),60,-0.8916,0.2324,0.41,0.26,0.65,18.3,TRUE
+Delaney,2007,Case-control (retrospective),United Kingdom,CA (community),All tetracyclines,Other antibiotics (non-tetracycline),Clinical symptoms or positive CDI test,90,-0.1054,0.2999,0.90,0.50,1.62,13.6,TRUE
+Dial,2008,Case-control (retrospective),Canada,CA (community),All tetracyclines,No CDI regardless of antibiotic exposure,ICD-9 codes,45,0.0953,1.2234,1.10,0.10,12.10,1.2,TRUE
+Doernberg,2012,Cohort (retrospective),United States,mixed (community + hospital),Doxycycline,Ceftriaxone alone (specific comparator),Diarrhea plus positive CDI toxin (ELISA),30,-0.3147,0.1353,0.73,0.56,0.95,27.8,TRUE
+Kuntz,2011,Case-control (retrospective),United States,mixed (community + hospital),Doxycycline,No CDI regardless of antibiotic exposure,ICD-9 codes,180,-0.0619,0.3990,0.94,0.43,2.05,9.1,TRUE
+Tartof,2015,Cohort (retrospective),United States,mixed (community + hospital),Doxycycline,No CDI regardless of antibiotic exposure,Diarrhea plus positive CDI toxin (PCR),90,-0.6931,0.1139,0.50,0.40,0.63,30.1,TRUE

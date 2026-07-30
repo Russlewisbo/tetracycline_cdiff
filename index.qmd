@@ -1,0 +1,65 @@
+---
+title: "Tetracyclines and *Clostridioides difficile*"
+subtitle: "A Bayesian meta-analysis"
+---
+
+```{=html}
+<style>
+  body.lang-en .it { display: none; }
+  body.lang-it .en { display: none; }
+  .lang-toggle { display:flex; gap:0; border:1px solid #2c7fb8; border-radius:999px;
+    overflow:hidden; width:max-content; margin:0 0 1.5rem; }
+  .lang-toggle button { background:#fff; color:#2c7fb8; border:0; padding:.45rem 1rem;
+    cursor:pointer; font-size:.9rem; font-weight:600; }
+  .lang-toggle button.active { background:#2c7fb8; color:#fff; }
+</style>
+<div class="lang-toggle" role="group" aria-label="Language">
+  <button id="btn-en" class="active" onclick="setLang('en')">English</button>
+  <button id="btn-it" onclick="setLang('it')">Italiano</button>
+</div>
+<script>
+  function setLang(l){
+    document.body.classList.remove("lang-en","lang-it");
+    document.body.classList.add("lang-"+l);
+    document.documentElement.lang = l;
+    document.getElementById("btn-en").classList.toggle("active", l==="en");
+    document.getElementById("btn-it").classList.toggle("active", l==="it");
+  }
+  document.addEventListener("DOMContentLoaded", function(){ setLang("en"); });
+</script>
+```
+
+::: {.en}
+This site presents an updated systematic review and **Bayesian random-effects
+meta-analysis** of whether tetracycline-class antibiotics are associated with a different
+risk of *C. difficile* infection (CDI) compared with other antibiotics.
+
+The headline finding is **suggestive but uncertain protection**: restricted to
+antibiotic comparators (11 studies), the pooled odds ratio is below 1 but its 95% credible
+interval still includes no effect, and between-study heterogeneity is substantial. A
+confidently protective conclusion emerges only under a strong literature-informed prior.
+The estimate is robust to leave-one-out removal and shows no funnel-plot asymmetry.
+
+➡️ **[Read the full meta-analysis report](report.qmd)** — with prior-sensitivity analysis,
+MCMC convergence diagnostics, subgroups, small-study-effects checks, and a secondary
+comparison against no-antibiotic controls. Each page has an English / Italian toggle.
+:::
+
+::: {.it}
+Questo sito presenta una revisione sistematica aggiornata e una **meta-analisi bayesiana a
+effetti casuali** sull'eventuale associazione tra gli antibiotici della classe delle
+tetracicline e un diverso rischio di infezione da *C. difficile* (ICD) rispetto ad altri
+antibiotici.
+
+Il risultato principale è una **protezione suggestiva ma incerta**: limitandosi ai
+comparatori antibiotici (11 studi), l'odds ratio aggregato è inferiore a 1 ma il suo
+intervallo di credibilità al 95% include ancora l'assenza di effetto, e l'eterogeneità tra
+studi è sostanziale. Una conclusione decisamente protettiva emerge solo con un forte prior
+informato dalla letteratura. La stima è robusta all'esclusione leave-one-out e non mostra
+asimmetria nel funnel plot.
+
+➡️ **[Leggi il report completo della meta-analisi](report.qmd)** — con analisi di
+sensibilità sui prior, diagnostica di convergenza MCMC, sottogruppi, verifiche sugli
+effetti dei piccoli studi e un confronto secondario con controlli senza antibiotico. Ogni
+pagina ha un selettore Inglese / Italiano.
+:::
