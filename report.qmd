@@ -74,6 +74,33 @@ prim_noabx_lr <- prim_noabx |> filter(study_id %in% low_rob)
 sens_prim <- summ(fit_prior(prim_abx_lr, 0, 1))
 sens_sec  <- summ(fit_prior(prim_noabx_lr, 0, 1))
 
+# ---- I-squared with posterior uncertainty (primary set) ----
+# I2 = tau^2 / (tau^2 + s2_typ), with the Higgins-Thompson "typical" sampling variance
+w_pri  <- 1 / prim_abx$sei^2
+s2_typ <- (nrow(prim_abx) - 1) * sum(w_pri) / (sum(w_pri)^2 - sum(w_pri^2))
+draws  <- fits_abx$primary$rposterior(20000)
+i2     <- draws[, "tau"]^2 / (draws[, "tau"]^2 + s2_typ)
+i2_txt <- sprintf("%.0f%% (95%% CrI %.0f\u2013%.0f%%)",
+                  100 * median(i2), 100 * quantile(i2, 0.025), 100 * quantile(i2, 0.975))
+
+# ---- Adjusted-only sensitivity: secondary (no-antibiotic) set ----
+sec_adj_df   <- prim_noabx |> filter(adjusted)
+sens_sec_adj <- summ(fit_prior(sec_adj_df, 0, 1))
+
+# ---- Sensitivity excluding RR/HR/IRR-derived estimates converted to OR ----
+# Per the extraction (Estimates sheet, Estimate_type of the curated estimate):
+# Doernberg 2012 (aHR), Dial 2008 (aRR), Brown 2016 (IRR)
+nonor <- c("Doernberg2012", "Dial2008", "Brown2016")
+sens_prim_or <- summ(fit_prior(prim_abx   |> filter(!study_id %in% nonor), 0, 1))
+sens_sec_or  <- summ(fit_prior(prim_noabx |> filter(!study_id %in% nonor), 0, 1))
+
+# ---- Illustrative absolute risks for the GRADE summary-of-findings table ----
+or2risk <- function(or, p0) 1000 * or * p0 / (1 - p0 + or * p0)
+abs_prim <- sprintf("%.0f vs 20 per 1,000 (%.0f\u2013%.0f)",
+                    or2risk(P$OR, 0.02), or2risk(P$OR_lo, 0.02), or2risk(P$OR_hi, 0.02))
+abs_sec  <- sprintf("%.0f vs 5 per 1,000 (%.0f\u2013%.0f)",
+                    or2risk(sec$OR, 0.005), or2risk(sec$OR_lo, 0.005), or2risk(sec$OR_hi, 0.005))
+
 # ---- Subgroups within the primary set ----
 prim_abx2 <- prim_abx |>
   mutate(design_broad = if_else(str_detect(study_design, "cohort"), "cohort", "case_control"))
@@ -499,7 +526,8 @@ Pooled odds ratio (tetracyclines vs other antibiotics)
 The 95% credible interval crosses 1. The posterior probability of any protective effect
 is **P(OR<1) = `r sprintf("%.2f", P$P_OR_lt_1)`**, and the probability of a clinically
 meaningful effect is **P(OR<0.80) = `r sprintf("%.2f", P$P_OR_lt_080)`**. Between-study
-heterogeneity is substantial ($\tau$ = `r fmt_ci(P$tau, P$tau_lo, P$tau_hi)`): the
+heterogeneity is substantial ($\tau$ = `r fmt_ci(P$tau, P$tau_lo, P$tau_hi)`;
+I² = `r i2_txt`): the
 predictive interval for a future study spans OR
 `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`.
 :::
@@ -511,7 +539,8 @@ L'intervallo di credibilità al 95% attraversa 1. La probabilità a posteriori d
 qualsiasi effetto protettivo è **P(OR<1) = `r sprintf("%.2f", P$P_OR_lt_1)`**, e la
 probabilità di un effetto clinicamente rilevante è
 **P(OR<0,80) = `r sprintf("%.2f", P$P_OR_lt_080)`**. L'eterogeneità tra studi è
-sostanziale ($\tau$ = `r fmt_ci(P$tau, P$tau_lo, P$tau_hi)`): l'intervallo predittivo per
+sostanziale ($\tau$ = `r fmt_ci(P$tau, P$tau_lo, P$tau_hi)`; I² = `r i2_txt`):
+l'intervallo predittivo per
 uno studio futuro va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`.
 :::
 :::
@@ -917,6 +946,44 @@ doxiciclina; la linea tratteggiata indica OR = 1.
 :::
 :::
 
+## [Additional sensitivity analyses]{.en}[Analisi di sensibilità aggiuntive]{.it}
+
+::: {.en}
+**Adjusted-only secondary comparison.** Restricting the no-antibiotic comparison to the
+three studies with multivariable-adjusted estimates (Delaney 2007, Dial 2008, Brown 2016)
+gives OR `r fmt_ci(sens_sec_adj$OR, sens_sec_adj$OR_lo, sens_sec_adj$OR_hi)` (k = 3),
+P(OR<1) = `r sprintf("%.2f", sens_sec_adj$P_OR_lt_1)` — consistent with the full
+secondary set, with a wider interval reflecting the smaller evidence base.
+
+**Excluding ratio-metric conversions.** The curated estimates of Doernberg 2012 (adjusted
+HR), Dial 2008 (adjusted RR) and Brown 2016 (adjusted IRR) enter the analysis as ORs
+under a rare-outcome approximation. Excluding them leaves the primary estimate
+essentially unchanged (k = 10; OR
+`r fmt_ci(sens_prim_or$OR, sens_prim_or$OR_lo, sens_prim_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_prim_or$P_OR_lt_1)`) and the secondary estimate likewise
+(k = 7; OR `r fmt_ci(sens_sec_or$OR, sens_sec_or$OR_lo, sens_sec_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_sec_or$P_OR_lt_1)`). Conclusions are robust to this
+approximation.
+:::
+::: {.it}
+**Confronto secondario con sole stime aggiustate.** Limitando il confronto contro nessun
+antibiotico ai tre studi con stime aggiustate multivariabili (Delaney 2007, Dial 2008,
+Brown 2016) si ottiene OR
+`r fmt_ci(sens_sec_adj$OR, sens_sec_adj$OR_lo, sens_sec_adj$OR_hi)` (k = 3),
+P(OR<1) = `r sprintf("%.2f", sens_sec_adj$P_OR_lt_1)` — coerente con l'intero set
+secondario, con un intervallo più ampio che riflette la base di evidenze ridotta.
+
+**Esclusione delle conversioni da misure di tasso/rischio.** Le stime curate di
+Doernberg 2012 (HR aggiustato), Dial 2008 (RR aggiustato) e Brown 2016 (IRR aggiustato)
+entrano nell'analisi come OR tramite un'approssimazione per esiti rari. Escludendole, la
+stima primaria resta sostanzialmente invariata (k = 10; OR
+`r fmt_ci(sens_prim_or$OR, sens_prim_or$OR_lo, sens_prim_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_prim_or$P_OR_lt_1)`), così come quella secondaria (k = 7; OR
+`r fmt_ci(sens_sec_or$OR, sens_sec_or$OR_lo, sens_sec_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_sec_or$P_OR_lt_1)`). Le conclusioni sono robuste rispetto a
+questa approssimazione.
+:::
+
 ## [Secondary comparison: vs no antibiotic (9 studies)]{.en}[Confronto secondario: vs nessun antibiotico (9 studi)]{.it}
 
 ::: {.en}
@@ -1084,6 +1151,57 @@ comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
 ::: {.it}
 **Figura 7.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
 :::
+:::
+
+## [Certainty of evidence (GRADE)]{.en}[Certezza delle evidenze (GRADE)]{.it}
+
+::: {.en}
+Certainty was rated following the GRADE approach [@Guyatt2008GRADE]. Because all evidence
+is observational, both comparisons start at *low* certainty; each was rated down for
+serious inconsistency and serious imprecision, yielding **very low** certainty for both
+questions.
+:::
+
+::: {.en}
+| Outcome: incident CDI | k | Pooled OR (95% CrI) | Illustrative absolute effect* | Risk of bias | Inconsistency | Indirectness | Imprecision | Publication bias | Certainty |
+|---|---|---|---|---|---|---|---|---|---|
+| Tetracyclines vs other antibiotics | 11 | `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)` | `r abs_prim` | Not seriousᵃ | Seriousᵇ | Not serious | Seriousᶜ | Undetectedᵈ | **Very low** |
+| Tetracyclines vs no antibiotic | 9 | `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)` | `r abs_sec` | Not seriousᵃ | Seriousᵇ | Seriousᵉ | Seriousᶜ | Undetectedᵈ | **Very low** |
+
+\* Illustrative only: assumes a baseline risk of 20 per 1,000 antibiotic-exposed patients
+(hospital context) and 5 per 1,000 unexposed patients; absolute effects scale with the
+baseline risk. ᵃ All 11 primary and 8 of 9 secondary studies at low risk of bias on the
+Newcastle-Ottawa Scale (provisional, single-reviewer assessment). ᵇ Substantial
+heterogeneity: primary I² = `r i2_txt`; the predictive interval spans protection to harm.
+ᶜ Credible interval includes both meaningful benefit and harm. ᵈ No funnel-plot asymmetry
+(Egger's test p = `r sprintf("%.2f", egg$pval)`), though power to detect it is limited.
+ᵉ The no-antibiotic comparator answers a different question and is highly prone to
+confounding by indication.
+:::
+
+::: {.it}
+La certezza è stata valutata secondo l'approccio GRADE [@Guyatt2008GRADE]. Poiché tutte
+le evidenze sono osservazionali, entrambi i confronti partono da una certezza *bassa*;
+ciascuno è stato declassato per inconsistenza e imprecisione serie, risultando in una
+certezza **molto bassa** per entrambe le domande.
+:::
+
+::: {.it}
+| Esito: ICD incidente | k | OR aggregato (ICr 95%) | Effetto assoluto illustrativo* | Rischio di bias | Inconsistenza | Indirettezza | Imprecisione | Bias di pubblicazione | Certezza |
+|---|---|---|---|---|---|---|---|---|---|
+| Tetracicline vs altri antibiotici | 11 | `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)` | `r abs_prim` | Non serioᵃ | Serioᵇ | Non serio | Serioᶜ | Non rilevatoᵈ | **Molto bassa** |
+| Tetracicline vs nessun antibiotico | 9 | `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)` | `r abs_sec` | Non serioᵃ | Serioᵇ | Serioᵉ | Serioᶜ | Non rilevatoᵈ | **Molto bassa** |
+
+\* Solo illustrativo: assume un rischio di base di 20 per 1.000 pazienti esposti ad
+antibiotici (contesto ospedaliero) e di 5 per 1.000 non esposti; gli effetti assoluti
+variano con il rischio di base. ᵃ Tutti gli 11 studi primari e 8 dei 9 secondari a basso
+rischio di bias secondo la scala Newcastle-Ottawa (valutazione provvisoria, singolo
+revisore). ᵇ Eterogeneità sostanziale: I² primario = `r i2_txt`; l'intervallo predittivo
+spazia dalla protezione al danno. ᶜ L'intervallo di credibilità include sia un beneficio
+sia un danno rilevanti. ᵈ Nessuna asimmetria del funnel plot (test di Egger p =
+`r sprintf("%.2f", egg$pval)`), sebbene la potenza per rilevarla sia limitata. ᵉ Il
+comparatore senza antibiotico risponde a una domanda diversa ed è fortemente soggetto a
+confondimento per indicazione.
 :::
 
 ## [Interpretation]{.en}[Interpretazione]{.it}

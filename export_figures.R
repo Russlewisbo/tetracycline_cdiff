@@ -248,4 +248,31 @@ fig7 <- comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
   theme_jama()
 save_fig(fig7, "fig7_tariq_comparison.png", 8, 3.2)
 
+# ---- Figure 8: risk-of-bias traffic light (rob-plot in report.qmd) ----
+nos <- read_csv("nos_assessment.csv", show_col_types = FALSE)
+fig8 <- nos |>
+  mutate(
+    Selection = case_when(sel1 + sel2 + sel3 + sel4 >= 3 ~ "Low",
+                          sel1 + sel2 + sel3 + sel4 == 2 ~ "Some concerns", TRUE ~ "High"),
+    Comparability = case_when(comp1 + comp2 == 2 ~ "Low",
+                              comp1 + comp2 == 1 ~ "Some concerns", TRUE ~ "High"),
+    `Outcome / Exposure` = case_when(oe1 + oe2 + oe3 == 3 ~ "Low",
+                                     oe1 + oe2 + oe3 == 2 ~ "Some concerns", TRUE ~ "High"),
+    Overall = rob_overall) |>
+  pivot_longer(c(Selection, Comparability, `Outcome / Exposure`, Overall),
+               names_to = "domain", values_to = "rating") |>
+  mutate(domain = factor(domain, levels = c("Selection", "Comparability",
+                                            "Outcome / Exposure", "Overall")),
+         rating = factor(rating, levels = c("Low", "Some concerns", "High")),
+         study  = reorder(study, total)) |>
+  ggplot(aes(x = domain, y = study, fill = rating)) +
+  geom_tile(colour = "white", linewidth = 0.8) +
+  scale_fill_manual(values = c("Low" = "#4C9A62", "Some concerns" = "#E9B44C",
+                               "High" = "#C0504D"), drop = FALSE) +
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_jama() +
+  theme(panel.grid = element_blank(), axis.line = element_blank(),
+        axis.ticks = element_blank(), legend.position = "bottom")
+save_fig(fig8, "fig8_rob_traffic_light.png", 7, 7)
+
 message("Done: ", paste(list.files("figures", pattern = "\\.png$"), collapse = ", "))
