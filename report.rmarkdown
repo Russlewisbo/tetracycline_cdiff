@@ -1243,3 +1243,4 @@ Reproducible source: `report.qmd`. Bayesian normal-normal hierarchical model (`b
 Sorgente riproducibile: `report.qmd`. Modello gerarchico normale-normale bayesiano (`bayesmeta`, posteriori numerica esatta), confermato con MCMC `brms`/Stan. Ri-generare con `quarto render report.qmd`.
 :::
 :::
+

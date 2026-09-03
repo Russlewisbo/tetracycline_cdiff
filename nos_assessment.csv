@@ -1,0 +1,21 @@
+study_id,study,design,analysis_set,sel1,sel2,sel3,sel4,comp1,comp2,oe1,oe2,oe3,total,rob_overall,notes
+Adams2017,Adams 2017,case-control,primary,1,1,1,1,1,1,1,1,1,9,Low,Validated ICD-9 case definition; population-based paediatric cohort; controls from same database; matched 1:3 (age/sex) plus multivariable conditional logistic; exposure from administrative records.
+Tartof2015,Tartof 2015,cohort,secondary,1,1,1,1,1,1,1,1,1,9,Low,Kaiser closed-system multicentre cohort; incident HA-CDI (recurrent excluded); adjusted Poisson regression; complete administrative follow-up.
+Baxter2008,Baxter 2008,case-control,primary,1,1,0,1,1,1,1,1,1,8,Low,Toxin-EIA confirmed incident cases; controls hospitalised antibiotic-exposed patients (selection S3 no star); matched plus progressively adjusted conditional logistic.
+Boven2026,Boven 2026,case-control,primary,0,1,1,1,1,1,1,1,1,8,Low,Population-based Swedish registers; ICD-10 A04.7 without documented validation (S1 no star); matched plus lasso-penalised conditional logistic.
+Brown2016,Brown 2016,case-control,secondary,0,1,1,1,1,1,1,1,1,8,Low,VA long-term care nested case-control; diagnostic method not reported (S1 no star); multilevel adjusted Poisson.
+Delaney2007,Delaney 2007,case-control,secondary,0,1,1,1,1,1,1,1,1,8,Low,GPRD; clinical diagnosis or toxin test without independent validation (S1 no star); matched 1:10 plus conditional logistic.
+Dial2008,Dial 2008,case-control,secondary,0,1,1,1,1,1,1,1,1,8,Low,ICD-9 primary discharge diagnosis (S1 no star); population controls (RAMQ); adjusted rate ratios.
+Guh2015,Guh 2015,case-control,secondary,1,1,1,1,1,0,1,1,1,8,Low,CDC EIP surveillance; lab-confirmed incident CA-CDI; per-drug OR unadjusted beyond matching (C2 no star).
+Kuntz2011,Kuntz 2011,case-control,primary,0,1,1,1,1,1,1,1,1,8,Low,Claims-based case definition without validation (S1 no star); adjusted logistic regression; pharmacy-claims exposure.
+Miller2023,Miller 2023,case-control,primary,0,1,1,1,1,1,1,1,1,8,Low,Claims diagnosis+treatment algorithm without documented validation (S1 no star); matched 1:5 plus adjusted conditional logistic.
+OLeary2023,O'Leary 2023,cohort,primary,1,1,1,1,1,1,1,1,0,8,Low,VA multicentre CAP cohort; multivariable logistic regression; completeness of post-discharge capture unclear (O3 no star).
+Saito2025,Saito 2025,case-control,primary,0,1,1,1,1,1,1,1,1,8,Low,ICD-10 plus CDI-treatment algorithm without documented validation (S1 no star); 1-year washout; matched plus conditional logistic.
+Strom2017,Ström 2017,case-control,secondary,1,1,1,1,1,0,1,1,1,8,Low,Toxigenic-culture confirmed cases; per-drug estimate unadjusted beyond matching/propensity (C2 no star).
+Watson2018,Watson 2018,cohort,primary,1,1,1,1,1,1,1,1,0,8,Low,150-hospital HCA cohort; early positives excluded (incident design); multivariable logistic; post-discharge capture unclear (O3 no star).
+Webb2020,Webb 2020,cohort,primary,1,1,1,1,1,1,1,1,0,8,Low,21-hospital Intermountain cohort; multivariable per-antibiotic logistic; post-discharge capture unclear (O3 no star).
+Carmichael2023,Carmichael 2023,cohort,primary,1,1,1,0,1,1,1,1,1,8,Low,Large outpatient claims cohort (aURI encounters); prior-CDI exclusion not documented (S4 no star); multivariable logistic.
+Doernberg2012,Doernberg 2012,cohort,primary,0,1,1,1,1,1,1,1,0,7,Low,"Single-centre cohort of ceftriaxone recipients (selected group, S1 no star); Cox with time-varying covariates; post-discharge follow-up unclear (O3 no star)."
+Tilton2019,Tilton 2019,case-control,secondary,1,1,0,1,1,0,1,1,1,7,Low,PCR-confirmed hospital-onset CDI; ward-matched hospital controls (S3 no star); per-drug estimate unadjusted (C2 no star).
+Yu2021,Yu 2021,case-control,secondary,1,1,0,1,1,0,1,1,1,7,Low,"Lab-confirmed nosocomial CDI (8 hospitals, 4 countries); hospital controls (S3 no star); per-drug estimate unadjusted (C2 no star)."
+Predrag2016,Predrag 2016,case-control,secondary,1,0,0,1,1,0,1,1,1,6,Some concerns,Small single-centre study; case representativeness unclear (S2 no star); hospital controls (S3 no star); univariate per-drug estimates (C2 no star).

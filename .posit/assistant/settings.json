@@ -4,7 +4,8 @@
       "*": "allow"
     },
     "edit": {
-      "*.qmd": "allow"
+      "*.qmd": "allow",
+      "*.R": "allow"
     },
     "bash": {
       "quarto render *": "allow",
