@@ -1,5 +1,12 @@
+# Quarto / R
 /.quarto/
 **/*.quarto_ipynb
 .Rproj.user
 .posit/assistant
 .Rhistory
+.RData
+
+# Generated build artifacts (never track)
+/report_cache/
+/report_files/
+/_freeze/

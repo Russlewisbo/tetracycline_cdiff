@@ -18,6 +18,7 @@ execute:
   echo: false
   warning: false
   message: false
+  cache: true
 ---
 
 ```{r packages}
@@ -331,23 +332,26 @@ antibiotici) e **9 nel confronto secondario** (tetracicline vs nessun antibiotic
 
 ::: {.en}
 The protocol (§16) requires two reviewers to screen titles/abstracts independently, with
-agreement reported as Cohen's κ. This is **pending human dual screening**: the current
-screening counts in the PRISMA flow are provisional (reconstructed from the Elicit
-second-screen), so no two-reviewer decision log yet exists. The chunk below computes κ
-automatically once the log (`screening_decisions.csv`, with columns `reviewer1` and
-`reviewer2` holding include/exclude decisions per record) is added to the project.
+agreement reported as Cohen's κ. Human dual screening is **not yet complete**, so a
+**synthetic, illustrative** decision log (`screening_decisions.csv`, every row tagged
+`SYNTHETIC_ILLUSTRATIVE`) is included here purely to demonstrate the calculation. The κ below
+is therefore illustrative only and must be replaced by the real two-reviewer log (identical
+schema: columns `reviewer1`/`reviewer2` holding include/exclude per record); the chunk then
+reports the true agreement automatically.
 :::
 ::: {.it}
 Il protocollo (§16) richiede che due revisori effettuino lo screening di titoli/abstract in
-modo indipendente, riportando la concordanza come κ di Cohen. Questo è **in attesa del doppio
-screening manuale**: i conteggi di screening nel flusso PRISMA sono provvisori (ricostruiti dal
-secondo screening di Elicit), quindi non esiste ancora un registro delle decisioni dei due
-revisori. Il blocco seguente calcola κ automaticamente quando il registro
-(`screening_decisions.csv`, con colonne `reviewer1` e `reviewer2` contenenti le decisioni
-include/exclude per ciascun record) viene aggiunto al progetto.
+modo indipendente, riportando la concordanza come κ di Cohen. Il doppio screening manuale
+**non è ancora completo**, quindi qui è incluso un registro decisionale **sintetico e
+illustrativo** (`screening_decisions.csv`, con ogni riga contrassegnata da
+`SYNTHETIC_ILLUSTRATIVE`) al solo scopo di dimostrare il calcolo. Il κ sottostante è quindi
+solo illustrativo e deve essere sostituito dal registro reale dei due revisori (schema
+identico: colonne `reviewer1`/`reviewer2` con include/exclude per record); il blocco riporterà
+allora la concordanza reale automaticamente.
 :::
 
 ```{r kappa, results='asis'}
+#| cache: false
 kappa_file <- "screening_decisions.csv"
 if (file.exists(kappa_file)) {
   kd  <- readr::read_csv(kappa_file, show_col_types = FALSE)
@@ -355,11 +359,13 @@ if (file.exists(kappa_file)) {
   po  <- sum(diag(tab)) / sum(tab)                       # observed agreement
   pe  <- sum(rowSums(tab) * colSums(tab)) / sum(tab)^2   # chance agreement
   kap <- (po - pe) / (1 - pe)                            # Cohen's kappa
+  synth <- "source" %in% names(kd) && any(kd$source == "SYNTHETIC_ILLUSTRATIVE")
   cat(sprintf(
-    "**Cohen's \u03ba = %.2f** (observed agreement %.1f%%; n = %d records screened by both reviewers).",
-    kap, 100 * po, sum(tab)))
+    "**Cohen's \u03ba = %.2f** (observed agreement %.1f%%; n = %d records)%s.",
+    kap, 100 * po, sum(tab),
+    if (synth) " \u2014 **illustrative synthetic data; replace with the real two-reviewer log**" else ""))
 } else {
-  cat("")
+  cat("*Pending human dual screening \u2014 no `screening_decisions.csv` in the project yet.*")
 }
 ```
 
@@ -410,7 +416,8 @@ studies whose curated estimate is unadjusted beyond matching received one compar
 star; for cohorts, completeness of follow-up was credited only for closed healthcare
 systems (HMO, claims or population registers). Overall ratings: 7-9 stars = **low** risk
 of bias, 5-6 = **some concerns**, 4 or fewer = **high**. Per-item scores and
-study-level justifications are recorded in `nos_assessment.csv`.
+study-level justifications are recorded in `nos_assessment.csv`; the study-level judgements
+are summarised as a traffic-light plot in Figure 9.
 :::
 ::: {.it}
 Tutti i 20 studi che contribuiscono alla sintesi sono osservazionali; il rischio di bias è
@@ -425,7 +432,8 @@ aggiustata oltre l'appaiamento ricevono una sola stella; per le coorti, la compl
 follow-up è stata accreditata solo per sistemi sanitari chiusi (HMO, claims o registri di
 popolazione). Valutazioni complessive: 7-9 stelle = rischio di bias **basso**, 5-6 =
 **alcune perplessità**, 4 o meno = **alto**. I punteggi per singolo item e le
-giustificazioni per studio sono registrati in `nos_assessment.csv`.
+giustificazioni per studio sono registrati in `nos_assessment.csv`; i giudizi per studio sono
+riassunti come traffic-light plot nella Figura 9.
 :::
 
 ```{r rob-table}
@@ -1220,6 +1228,29 @@ numerosità per gruppo sono piccole e gli intervalli ampi, quindi entrambe le an
 esplorative; l'eterogeneità residua permane (τ disegno = `r mrd_tau`; τ aggiustamento = `r mra_tau`).
 :::
 
+```{r fig-metareg2, fig.width=7.5, fig.height=3.4}
+bind_rows(dsn  |> mutate(panel = "Study design (k = 11)"),
+          adjt |> mutate(panel = "Adjustment status (k = 20)")) |>
+  mutate(panel = factor(panel, levels = c("Study design (k = 11)", "Adjustment status (k = 20)")),
+         group = factor(group, levels = c("Cohort", "Case-control", "Unadjusted", "Adjusted"))) |>
+  ggplot(aes(OR, group)) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_blue, size = 0.45) +
+  facet_grid(panel ~ ., scales = "free_y", space = "free_y", switch = "y") +
+  scale_x_log10(breaks = c(0.3, 0.5, 0.8, 1, 1.5, 2)) +
+  labs(x = "Odds ratio (log scale)", y = NULL) +
+  theme_jama()
+```
+
+::: {.cap}
+::: {.en}
+**Figure 7.** Pooled odds ratios from the design and adjustment Bayesian meta-regressions (exact `bmr`, cell-means coding): study design on the primary antibiotic-comparator set (k = 11), adjustment on the full primary set (k = 20). Dashed line at OR = 1; all credible intervals cross it.
+:::
+::: {.it}
+**Figura 7.** OR aggregati dalle meta-regressioni bayesiane per disegno e aggiustamento (`bmr` esatto, codifica cell-means): disegno sul set primario con comparatore antibiotico (k = 11), aggiustamento sul set primario completo (k = 20). Linea tratteggiata a OR = 1; tutti gli intervalli di credibilità la attraversano.
+:::
+:::
+
 ::: {.en}
 ```{r tbl-mr2-en}
 bind_rows(dsn  |> mutate(Covariate = "Study design (k = 11)"),
@@ -1307,10 +1338,67 @@ comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
 
 ::: {.cap}
 ::: {.en}
-**Figure 7.** From Tariq to the updated review: recapitulation and stepwise decomposition of the difference.
+**Figure 8.** From Tariq to the updated review: recapitulation and stepwise decomposition of the difference.
 :::
 ::: {.it}
-**Figura 7.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
+**Figura 8.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
+:::
+:::
+
+## [Risk-of-bias summary]{.en}[Sintesi del rischio di bias]{.it}
+
+::: {.en}
+Figure 9 summarises the study-level Newcastle-Ottawa judgements as a traffic-light plot,
+mapping each study's per-domain star counts to Low / Some concerns / High. All 20 studies are
+**Low** overall except Predrag 2016 (some concerns); the scattered amber cells sit almost
+entirely in the Selection domain (representativeness / non-response), while the comparability
+and outcome/exposure domains are largely green.
+:::
+::: {.it}
+La Figura 9 riassume le valutazioni Newcastle-Ottawa per studio come traffic-light plot,
+mappando i conteggi di stelle per dominio in Basso / Alcune perplessità / Alto. Tutti i 20
+studi sono complessivamente a rischio **basso** tranne Predrag 2016 (alcune perplessità); le
+celle ambra si concentrano quasi esclusivamente nel dominio Selezione (rappresentatività /
+non-risposta), mentre i domini di comparabilità ed esito/esposizione sono in gran parte verdi.
+:::
+
+```{r fig-rob, fig.width=8, fig.height=6}
+rob_cols <- c(Low = "#2E7D32", `Some concerns` = "#F4B400", High = "#C62828")
+sym      <- c(Low = "+", `Some concerns` = "-", High = "x")
+tl <- readr::read_csv("nos_assessment.csv", show_col_types = FALSE) |>
+  transmute(study, total,
+    Selection = sel1 + sel2 + sel3 + sel4,
+    Comparability = comp1 + comp2,
+    `Outcome/Exposure` = oe1 + oe2 + oe3,
+    Overall = stringr::str_to_sentence(rob_overall)) |>
+  mutate(
+    Selection = dplyr::case_when(Selection >= 4 ~ "Low", Selection >= 2 ~ "Some concerns", TRUE ~ "High"),
+    Comparability = dplyr::case_when(Comparability >= 2 ~ "Low", Comparability == 1 ~ "Some concerns", TRUE ~ "High"),
+    `Outcome/Exposure` = dplyr::case_when(`Outcome/Exposure` >= 3 ~ "Low", `Outcome/Exposure` == 2 ~ "Some concerns", TRUE ~ "High")) |>
+  dplyr::arrange(total, dplyr::desc(study))
+tl_long <- tl |>
+  tidyr::pivot_longer(c(Selection, Comparability, `Outcome/Exposure`, Overall),
+                      names_to = "Domain", values_to = "Judgement") |>
+  mutate(study = factor(study, levels = tl$study),
+         Domain = factor(Domain, levels = c("Selection","Comparability","Outcome/Exposure","Overall")),
+         Judgement = factor(Judgement, levels = c("Low","Some concerns","High")))
+ggplot(tl_long, aes(Domain, study)) +
+  geom_point(aes(colour = Judgement), size = 7) +
+  geom_text(aes(label = sym[as.character(Judgement)]), colour = "white", size = 3.6, fontface = "bold") +
+  geom_vline(xintercept = 3.5, linetype = "dotted", colour = "#4D4D4D") +
+  scale_colour_manual(values = rob_cols, drop = FALSE) +
+  scale_x_discrete(position = "top") +
+  labs(x = NULL, y = NULL, colour = "Risk of bias") +
+  theme_jama() +
+  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 20, hjust = 0))
+```
+
+::: {.cap}
+::: {.en}
+**Figure 9.** Risk-of-bias traffic-light plot (Newcastle-Ottawa Scale). Per-domain judgements are derived from item stars — Selection (max 4), Comparability (max 2), Outcome/Exposure (max 3) — and Overall is the study-level NOS rating. Green **+** = low, amber **−** = some concerns, red **×** = high. Provisional, single-reviewer assessment.
+:::
+::: {.it}
+**Figura 9.** Traffic-light plot del rischio di bias (scala Newcastle-Ottawa). I giudizi per dominio derivano dalle stelle per item — Selezione (max 4), Comparabilità (max 2), Esito/Esposizione (max 3) — e il giudizio complessivo è la valutazione NOS per studio. Verde **+** = basso, ambra **−** = alcune perplessità, rosso **×** = alto. Valutazione provvisoria, singolo revisore.
 :::
 :::
 
