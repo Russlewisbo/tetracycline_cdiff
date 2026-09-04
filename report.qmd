@@ -190,6 +190,37 @@ ctx20 <- tibble(care_context = c("CA","HA","mixed"),
 ha20   <- fmt_ci(ctx20$OR[2], ctx20$OR_lo[2], ctx20$OR_hi[2])
 ha20_p <- sprintf("%.2f", ctx20$P_OR_lt_1[2])
 
+# ---- Design & adjustment meta-regressions (pre-specified §19; exact Bayesian, bmr) ----
+# Design: primary antibiotic-comparator set (k = 11), collapsed case-control vs cohort.
+prim_abx <- prim_abx |>
+  mutate(design2 = if_else(str_detect(study_design, "case_control"), "case_control", "cohort"))
+Xd  <- model.matrix(~ 0 + design2, data = prim_abx); colnames(Xd) <- c("case_control","cohort")
+mrd <- bmr(y = prim_abx$yi, sigma = prim_abx$sei, labels = prim_abx$reference, X = Xd,
+           tau.prior = hn, beta.prior.mean = c(0, 0), beta.prior.sd = c(1, 1))
+dsn <- tibble(group = c("Case-control","Cohort"),
+  k         = as.integer(colSums(Xd)),
+  OR        = exp(mrd$summary["median",    c("case_control","cohort")]),
+  OR_lo     = exp(mrd$summary["95% lower", c("case_control","cohort")]),
+  OR_hi     = exp(mrd$summary["95% upper", c("case_control","cohort")]),
+  P_OR_lt_1 = c(mrd$pposterior(beta = 0, which = "case_control"),
+                mrd$pposterior(beta = 0, which = "cohort")))
+mrd_tau <- sprintf("%.2f", mrd$summary["median","tau"])
+
+# Adjustment: all 11 primary-abx estimates are adjusted, so this covariate is assessed on
+# the full primary set (k = 20; 14 adjusted, 6 unadjusted).
+prim <- prim |> mutate(adj2 = if_else(as.logical(adjusted), "adjusted", "unadjusted"))
+Xa  <- model.matrix(~ 0 + adj2, data = prim); colnames(Xa) <- c("adjusted","unadjusted")
+mra <- bmr(y = prim$yi, sigma = prim$sei, labels = prim$reference, X = Xa,
+           tau.prior = hn, beta.prior.mean = c(0, 0), beta.prior.sd = c(1, 1))
+adjt <- tibble(group = c("Adjusted","Unadjusted"),
+  k         = as.integer(colSums(Xa)),
+  OR        = exp(mra$summary["median",    c("adjusted","unadjusted")]),
+  OR_lo     = exp(mra$summary["95% lower", c("adjusted","unadjusted")]),
+  OR_hi     = exp(mra$summary["95% upper", c("adjusted","unadjusted")]),
+  P_OR_lt_1 = c(mra$pposterior(beta = 0, which = "adjusted"),
+                mra$pposterior(beta = 0, which = "unadjusted")))
+mra_tau <- sprintf("%.2f", mra$summary["median","tau"])
+
 # ---- Prior-data conflict: literature prior vs data-only estimate (Box / Marshall-Spiegelhalter) ----
 fit_vague_pdc <- bayesmeta(prim_abx$yi, prim_abx$sei, mu.prior.mean = 0, mu.prior.sd = 10, tau.prior = hn)
 pdc_md <- fit_vague_pdc$summary["mean","mu"]; pdc_sd <- fit_vague_pdc$summary["sd","mu"]
@@ -295,6 +326,42 @@ curata alla meta-analisi bayesiana: **11 nel confronto primario** (tetracicline 
 antibiotici) e **9 nel confronto secondario** (tetracicline vs nessun antibiotico).
 :::
 :::
+
+## [Inter-rater agreement (screening)]{.en}[Concordanza tra revisori (screening)]{.it}
+
+::: {.en}
+The protocol (§16) requires two reviewers to screen titles/abstracts independently, with
+agreement reported as Cohen's κ. This is **pending human dual screening**: the current
+screening counts in the PRISMA flow are provisional (reconstructed from the Elicit
+second-screen), so no two-reviewer decision log yet exists. The chunk below computes κ
+automatically once the log (`screening_decisions.csv`, with columns `reviewer1` and
+`reviewer2` holding include/exclude decisions per record) is added to the project.
+:::
+::: {.it}
+Il protocollo (§16) richiede che due revisori effettuino lo screening di titoli/abstract in
+modo indipendente, riportando la concordanza come κ di Cohen. Questo è **in attesa del doppio
+screening manuale**: i conteggi di screening nel flusso PRISMA sono provvisori (ricostruiti dal
+secondo screening di Elicit), quindi non esiste ancora un registro delle decisioni dei due
+revisori. Il blocco seguente calcola κ automaticamente quando il registro
+(`screening_decisions.csv`, con colonne `reviewer1` e `reviewer2` contenenti le decisioni
+include/exclude per ciascun record) viene aggiunto al progetto.
+:::
+
+```{r kappa, results='asis'}
+kappa_file <- "screening_decisions.csv"
+if (file.exists(kappa_file)) {
+  kd  <- readr::read_csv(kappa_file, show_col_types = FALSE)
+  tab <- table(kd$reviewer1, kd$reviewer2)
+  po  <- sum(diag(tab)) / sum(tab)                       # observed agreement
+  pe  <- sum(rowSums(tab) * colSums(tab)) / sum(tab)^2   # chance agreement
+  kap <- (po - pe) / (1 - pe)                            # Cohen's kappa
+  cat(sprintf(
+    "**Cohen's \u03ba = %.2f** (observed agreement %.1f%%; n = %d records screened by both reviewers).",
+    kap, 100 * po, sum(tab)))
+} else {
+  cat("*Pending human dual screening — no `screening_decisions.csv` in the project yet.*")
+}
+```
 
 ## [Table 1. Characteristics of included studies]{.en}[Tabella 1. Caratteristiche degli studi inclusi]{.it}
 
@@ -490,6 +557,25 @@ una valutazione di un singolo revisore basata sul database di estrazione — la 
 delle covariate non è ancora popolata e le cui righe di stima risultano tutte non
 verificate — e devono essere riconfermati sugli articoli integrali prima di essere
 considerati definitivi.
+:::
+:::
+
+::: {.callout-note}
+::: {.en}
+**Protocol deviation — no randomised trials included.** The protocol pre-specified RCTs as an
+eligible design, with a study-design stratification (observational vs RCT) and a Cochrane
+**RoB 2** appraisal for any trials. No RCT met the inclusion criteria: all 20 studies in the
+synthesis are observational. The observational-vs-RCT stratum and the RoB 2 appraisal are
+therefore not applicable and were not performed, and the design meta-regression is restricted
+to observational designs (case-control vs cohort).
+:::
+::: {.it}
+**Deviazione dal protocollo — nessuno studio randomizzato incluso.** Il protocollo prevedeva
+gli RCT tra i disegni eleggibili, con una stratificazione per disegno (osservazionale vs RCT) e
+la valutazione Cochrane **RoB 2** per eventuali trial. Nessun RCT ha soddisfatto i criteri di
+inclusione: tutti i 20 studi della sintesi sono osservazionali. Lo strato osservazionale-vs-RCT
+e la valutazione RoB 2 non sono quindi applicabili e non sono stati eseguiti, e la
+meta-regressione per disegno è limitata ai disegni osservazionali (caso-controllo vs coorte).
 :::
 :::
 
@@ -1090,6 +1176,77 @@ bind_rows(ctx |> mutate(set = "Primary (k=11)"),
 :::
 ::: {.it}
 **Figura 6.** OR aggregati per contesto dalla meta-regressione bayesiana: set primario con comparatore antibiotico (k = 11, blu) e sensibilità sul set completo (k = 20, grigio).
+:::
+:::
+
+## [Design & adjustment meta-regression]{.en}[Meta-regressione per disegno e aggiustamento]{.it}
+
+::: {.en}
+Two further pre-specified Bayesian meta-regressions (exact, `bmr`) complete the covariate set
+named in the protocol (§19: context, design, adjustment). **Study design** is modelled on the
+primary antibiotic-comparator set (k = 11), collapsing designs to case-control (k = 6) versus
+cohort (k = 5). Cohort studies lean protective
+(OR `r fmt_ci(dsn$OR[2], dsn$OR_lo[2], dsn$OR_hi[2])`,
+P(OR<1) = `r sprintf("%.2f", dsn$P_OR_lt_1[2])`), whereas case-control studies straddle 1
+(OR `r fmt_ci(dsn$OR[1], dsn$OR_lo[1], dsn$OR_hi[1])`,
+P(OR<1) = `r sprintf("%.2f", dsn$P_OR_lt_1[1])`) — the same design-related divergence flagged
+in the subgroup table. **Adjustment status** cannot be regressed within the primary set
+because all 11 estimates are covariate-adjusted; it is therefore assessed on the full primary
+set (k = 20; 14 adjusted, 6 unadjusted). Adjusted estimates are modestly protective
+(OR `r fmt_ci(adjt$OR[1], adjt$OR_lo[1], adjt$OR_hi[1])`) while unadjusted estimates are
+null-to-slightly-adverse (OR `r fmt_ci(adjt$OR[2], adjt$OR_lo[2], adjt$OR_hi[2])`), with
+heavily overlapping intervals that both cross 1 — so there is no sign that unadjusted studies
+inflate the protective signal (if anything, the reverse). Per-group counts are small and
+intervals wide, so both analyses are exploratory; residual heterogeneity persists
+(design τ = `r mrd_tau`; adjustment τ = `r mra_tau`).
+:::
+::: {.it}
+Due ulteriori meta-regressioni bayesiane pre-specificate (esatte, `bmr`) completano l'insieme
+di covariate indicato nel protocollo (§19: contesto, disegno, aggiustamento). Il **disegno
+dello studio** è modellato sul set primario con comparatore antibiotico (k = 11), raggruppando
+i disegni in caso-controllo (k = 6) vs coorte (k = 5). Gli studi di coorte tendono alla
+protezione (OR `r fmt_ci(dsn$OR[2], dsn$OR_lo[2], dsn$OR_hi[2])`,
+P(OR<1) = `r sprintf("%.2f", dsn$P_OR_lt_1[2])`), mentre i caso-controllo attraversano 1
+(OR `r fmt_ci(dsn$OR[1], dsn$OR_lo[1], dsn$OR_hi[1])`,
+P(OR<1) = `r sprintf("%.2f", dsn$P_OR_lt_1[1])`) — la stessa divergenza legata al disegno
+evidenziata nella tabella dei sottogruppi. Lo **stato di aggiustamento** non può essere
+regredito nel set primario perché tutte le 11 stime sono aggiustate; viene quindi valutato sul
+set primario completo (k = 20; 14 aggiustate, 6 non aggiustate). Le stime aggiustate sono
+modestamente protettive (OR `r fmt_ci(adjt$OR[1], adjt$OR_lo[1], adjt$OR_hi[1])`) mentre quelle
+non aggiustate sono nulle-o-lievemente-avverse (OR `r fmt_ci(adjt$OR[2], adjt$OR_lo[2], adjt$OR_hi[2])`),
+con intervalli ampiamente sovrapposti che attraversano entrambi 1 — quindi non vi è segno che
+gli studi non aggiustati amplifichino il segnale protettivo (semmai il contrario). Le
+numerosità per gruppo sono piccole e gli intervalli ampi, quindi entrambe le analisi sono
+esplorative; l'eterogeneità residua permane (τ disegno = `r mrd_tau`; τ aggiustamento = `r mra_tau`).
+:::
+
+::: {.en}
+```{r tbl-mr2-en}
+bind_rows(dsn  |> mutate(Covariate = "Study design (k = 11)"),
+          adjt |> mutate(Covariate = "Adjustment (k = 20)")) |>
+  transmute(Covariate, Group = group, `Studies (k)` = k,
+            `OR (95% CrI)` = fmt_ci(OR, OR_lo, OR_hi),
+            `P(OR<1)` = sprintf("%.2f", P_OR_lt_1)) |>
+  kable(align = "llccc")
+```
+:::
+::: {.it}
+```{r tbl-mr2-it}
+bind_rows(dsn  |> mutate(Covariata = "Disegno (k = 11)"),
+          adjt |> mutate(Covariata = "Aggiustamento (k = 20)")) |>
+  transmute(Covariata, Gruppo = group, `Studi (k)` = k,
+            `OR (ICr 95%)` = fmt_ci(OR, OR_lo, OR_hi),
+            `P(OR<1)` = sprintf("%.2f", P_OR_lt_1)) |>
+  kable(align = "llccc")
+```
+:::
+
+::: {.cap}
+::: {.en}
+**Design and adjustment meta-regression.** Pooled ORs per group (exact Bayesian `bmr`, cell-means coding). Design is modelled on the primary antibiotic-comparator set (k = 11); adjustment on the full primary set (k = 20), because all 11 primary-comparator estimates are adjusted. Both are exploratory given small per-group counts.
+:::
+::: {.it}
+**Meta-regressione per disegno e aggiustamento.** OR aggregati per gruppo (`bmr` bayesiano esatto, codifica cell-means). Il disegno è modellato sul set primario con comparatore antibiotico (k = 11); l'aggiustamento sul set primario completo (k = 20), poiché tutte le 11 stime con comparatore antibiotico sono aggiustate. Entrambe sono esplorative viste le piccole numerosità per gruppo.
 :::
 :::
 
