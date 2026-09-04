@@ -6,7 +6,6 @@ bibliography: references.bib
 link-citations: true
 format:
   html:
-    embed-resources: true
     toc: false
     theme: cosmo
     fig-align: center

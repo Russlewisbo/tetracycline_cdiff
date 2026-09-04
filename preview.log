@@ -1,0 +1,82 @@
+
+
+processing file: report.qmd
+1/47                 
+2/47 [packages]      
+3/47                 
+4/47 [setup]         
+5/47                 
+6/47 [toggle-assets] 
+7/47                 
+8/47 [tbl1]          
+9/47                 
+10/47 [rob-table]     
+11/47                 
+12/47 [rob-plot]      
+13/47                 
+14/47 [fig-forest]    
+15/47                 
+16/47 [tbl-prior-en]  
+17/47                 
+18/47 [tbl-prior-it]  
+19/47                 
+20/47 [brms-fit]      
+21/47                 
+22/47 [tbl-confirm-en]
+23/47                 
+24/47 [tbl-confirm-it]
+25/47                 
+26/47 [fig-trace]     
+27/47                 
+28/47 [fig-funnel]    
+29/47                 
+30/47 [fig-loo]       
+31/47                 
+32/47 [doxy-sens]     
+33/47                 
+34/47 [tbl-doxy-en]   
+35/47                 
+36/47 [tbl-doxy-it]   
+37/47                 
+38/47 [fig-doxy]      
+39/47                 
+40/47 [tbl-sub-en]    
+41/47                 
+42/47 [tbl-sub-it]    
+43/47                 
+44/47 [fig-metareg]   
+45/47                 
+46/47 [fig-tariq]     
+47/47                 
+output file: report.knit.md
+
+pandoc 
+  to: html
+  output-file: report.html
+  standalone: true
+  title-prefix: Tetracyclines & C. difficile
+  section-divs: true
+  html-math-method: mathjax
+  wrap: none
+  default-image-extension: png
+  toc: false
+  
+metadata
+  document-css: false
+  link-citations: true
+  date-format: long
+  lang: en
+  theme: cosmo
+  title: Tetracyclines and the risk of *Clostridioides difficile* infection
+  subtitle: Updated systematic review & Bayesian random-effects meta-analysis
+  date: today
+  bibliography:
+    - references.bib
+  
+Output created: docs/report.html
+
+Preparing to preview
+
+Watching files for changes
+Browse at http://localhost:4989/report.html
+Listening on http://127.0.0.1:4989/
