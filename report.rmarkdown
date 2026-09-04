@@ -1,0 +1,1369 @@
+---
+title: "Tetracyclines and the risk of *Clostridioides difficile* infection"
+subtitle: "Updated systematic review & Bayesian random-effects meta-analysis"
+date: today
+bibliography: references.bib
+link-citations: true
+format:
+  html:
+    embed-resources: true
+    toc: false
+    theme: cosmo
+    fig-align: center
+    default-image-extension: png
+  pdf:
+    documentclass: scrartcl
+    fig-align: center
+    default-image-extension: pdf
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r packages}
+# Packages must load in an uncached chunk: on a cache hit the setup chunk is
+# not re-executed, so library() calls placed there would never run.
+library(tidyverse)
+library(bayesmeta)
+library(metafor)
+library(knitr)
+```
+
+```{r setup}
+#| cache: true
+es   <- read_csv("tbl_es_analysis_ready.csv", show_col_types = FALSE)
+prim <- es |> filter(use_in_primary == "Yes")
+
+# PECO comparator: another antibiotic. Studies whose only comparator is
+# "no antibiotic" are held out for a separate secondary analysis.
+prim_abx   <- prim |> filter(comparator_type != "no_antibiotic")   # k = 11 (primary)
+prim_noabx <- prim |> filter(comparator_type == "no_antibiotic")   # k = 9  (secondary)
+
+hn <- function(t) dhalfnormal(t, scale = 0.5)   # Half-Normal(0, 0.5) on tau
+
+fit_prior <- function(df, mean, sd) {
+  bayesmeta(y = df$yi, sigma = df$sei, labels = df$reference,
+            mu.prior.mean = mean, mu.prior.sd = sd, tau.prior = hn)
+}
+
+summ <- function(f) {
+  sm <- f$summary
+  tibble(
+    OR = exp(sm["median","mu"]), OR_lo = exp(sm["95% lower","mu"]), OR_hi = exp(sm["95% upper","mu"]),
+    tau = sm["median","tau"], tau_lo = sm["95% lower","tau"], tau_hi = sm["95% upper","tau"],
+    P_OR_lt_1 = f$pposterior(mu = 0), P_OR_lt_080 = f$pposterior(mu = log(0.80)),
+    pred_lo = exp(sm["95% lower","theta"]), pred_hi = exp(sm["95% upper","theta"])
+  )
+}
+
+# ---- Primary set (k = 11), four priors ----
+fits_abx <- list(
+  primary    = fit_prior(prim_abx, 0,         1),
+  vague      = fit_prior(prim_abx, 0,         10),
+  sceptical  = fit_prior(prim_abx, 0,         0.35),
+  literature = fit_prior(prim_abx, log(0.62), 0.10)
+)
+res_abx <- imap_dfr(fits_abx, ~ summ(.x) |> mutate(prior = .y, .before = 1))
+
+# ---- Secondary set: no-antibiotic comparator (k = 9) ----
+sec <- summ(fit_prior(prim_noabx, 0, 1))
+
+# ---- Risk of bias (Newcastle-Ottawa) and pre-specified exclusion sensitivity ----
+nos <- read_csv("nos_assessment.csv", show_col_types = FALSE)
+low_rob <- nos$study_id[nos$rob_overall == "Low"]
+n_low   <- length(low_rob)
+# Protocol pre-specification: exclude studies at higher risk of bias (NOS < 7)
+prim_abx_lr   <- prim_abx   |> filter(study_id %in% low_rob)
+prim_noabx_lr <- prim_noabx |> filter(study_id %in% low_rob)
+sens_prim <- summ(fit_prior(prim_abx_lr, 0, 1))
+sens_sec  <- summ(fit_prior(prim_noabx_lr, 0, 1))
+
+# ---- I-squared with posterior uncertainty (primary set) ----
+# I2 = tau^2 / (tau^2 + s2_typ), with the Higgins-Thompson "typical" sampling variance
+w_pri  <- 1 / prim_abx$sei^2
+s2_typ <- (nrow(prim_abx) - 1) * sum(w_pri) / (sum(w_pri)^2 - sum(w_pri^2))
+draws  <- fits_abx$primary$rposterior(20000)
+i2     <- draws[, "tau"]^2 / (draws[, "tau"]^2 + s2_typ)
+i2_txt <- sprintf("%.0f%% (95%% CrI %.0f\u2013%.0f%%)",
+                  100 * median(i2), 100 * quantile(i2, 0.025), 100 * quantile(i2, 0.975))
+
+# ---- Adjusted-only sensitivity: secondary (no-antibiotic) set ----
+sec_adj_df   <- prim_noabx |> filter(adjusted)
+sens_sec_adj <- summ(fit_prior(sec_adj_df, 0, 1))
+
+# ---- Sensitivity excluding RR/HR/IRR-derived estimates converted to OR ----
+# Per the extraction (Estimates sheet, Estimate_type of the curated estimate):
+# Doernberg 2012 (aHR), Dial 2008 (aRR), Brown 2016 (IRR)
+nonor <- c("Doernberg2012", "Dial2008", "Brown2016")
+sens_prim_or <- summ(fit_prior(prim_abx   |> filter(!study_id %in% nonor), 0, 1))
+sens_sec_or  <- summ(fit_prior(prim_noabx |> filter(!study_id %in% nonor), 0, 1))
+
+# ---- Display helpers ----
+fmt_ci <- function(x, lo, hi) sprintf("%.2f (%.2f\u2013%.2f)", x, lo, hi)
+getp   <- function(p) as.list(res_abx[res_abx$prior == p, ])
+P <- getp("primary")
+
+# ---- Illustrative absolute risks for the GRADE summary-of-findings table ----
+or2risk <- function(or, p0) 1000 * or * p0 / (1 - p0 + or * p0)
+abs_prim <- sprintf("%.0f vs 20 per 1,000 (%.0f\u2013%.0f)",
+                    or2risk(P$OR, 0.02), or2risk(P$OR_lo, 0.02), or2risk(P$OR_hi, 0.02))
+abs_sec  <- sprintf("%.0f vs 5 per 1,000 (%.0f\u2013%.0f)",
+                    or2risk(sec$OR, 0.005), or2risk(sec$OR_lo, 0.005), or2risk(sec$OR_hi, 0.005))
+
+# ---- Subgroups within the primary set ----
+prim_abx2 <- prim_abx |>
+  mutate(design_broad = if_else(str_detect(study_design, "cohort"), "cohort", "case_control"))
+subs <- list(
+  doxycycline  = prim_abx2 |> filter(exposure_class == "doxycycline"),
+  case_control = prim_abx2 |> filter(design_broad == "case_control"),
+  cohort       = prim_abx2 |> filter(design_broad == "cohort")
+)
+res_sub <- imap_dfr(subs, ~ summ(fit_prior(.x, 0, 1)) |>
+                      mutate(analysis = .y, k = nrow(.x), .before = 1))
+
+# ---- Small-study effects (frequentist diagnostics) ----
+rma_abx <- rma(yi = prim_abx$yi, vi = prim_abx$sei^2, method = "REML")
+egg <- regtest(rma_abx)                       # Egger's regression test
+
+# ---- Leave-one-out on the Bayesian primary (prior N(0,1)) ----
+loo <- map_dfr(seq_len(nrow(prim_abx)), function(i) {
+  d <- prim_abx[-i, ]
+  s <- summ(bayesmeta(y = d$yi, sigma = d$sei, labels = d$reference,
+                      mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn))
+  tibble(dropped = prim_abx$reference[i],
+         OR = s$OR, OR_lo = s$OR_lo, OR_hi = s$OR_hi, P1 = s$P_OR_lt_1)
+})
+
+# ---- Comparison with Tariq (2018): recapitulation & decomposition ----
+# Tariq's exact per-study estimates (Figure 2A of Tariq et al. 2018)
+tariq <- tibble(
+  study = c("Baxter 2008","Delaney 2007","Dial 2008","Doernberg 2012","Kuntz 2011","Tartof 2015"),
+  yi  = c(-0.8916, -0.1054, 0.0953, -0.3147, -0.0619, -0.6931),
+  sei = c( 0.2324,  0.2999, 1.2234,  0.1353,  0.3990,  0.1139))
+dl <- rma(yi = tariq$yi, sei = tariq$sei, method = "DL")          # reproduce Tariq's DL model
+bm_tariq  <- summ(bayesmeta(tariq$yi, tariq$sei,
+                            mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn))
+tariq_ids <- c("Baxter2008","Delaney2007","Dial2008","Doernberg2012","Kuntz2011","Tartof2015")
+new8 <- prim_abx |> filter(!study_id %in% tariq_ids)             # new antibiotic-comparator studies
+bm_bridge <- summ(bayesmeta(c(tariq$yi, new8$yi), c(tariq$sei, new8$sei),
+                            mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn))
+comp <- bind_rows(
+  tibble(analysis = "Tariq 2018, original (DL frequentist)", k = 6,
+         OR = exp(coef(dl)), OR_lo = exp(dl$ci.lb), OR_hi = exp(dl$ci.ub)),
+  bm_tariq  |> transmute(analysis = "Tariq studies, our Bayesian model", k = 6, OR, OR_lo, OR_hi),
+  bm_bridge |> transmute(analysis = "Tariq studies + 8 new studies", k = 14, OR, OR_lo, OR_hi),
+  getp("primary") |> as_tibble() |>
+    transmute(analysis = "This review, primary (Bayesian)", k = 11, OR, OR_lo, OR_hi))
+
+v_tariq_dl  <- fmt_ci(exp(coef(dl)), exp(dl$ci.lb), exp(dl$ci.ub))
+v_tariq_bay <- fmt_ci(bm_tariq$OR, bm_tariq$OR_lo, bm_tariq$OR_hi)
+v_tariq_p   <- sprintf("%.2f", bm_tariq$P_OR_lt_1)
+v_bridge    <- fmt_ci(bm_bridge$OR, bm_bridge$OR_lo, bm_bridge$OR_hi)
+v_bridge_p  <- sprintf("%.2f", bm_bridge$P_OR_lt_1)
+
+# ---- Care-context meta-regression (exact Bayesian, bmr) ----
+# PRIMARY: antibiotic-comparator set (k = 11)
+Xc <- model.matrix(~ 0 + care_context, data = prim_abx); colnames(Xc) <- c("CA","HA","mixed")
+mr <- bmr(y = prim_abx$yi, sigma = prim_abx$sei, labels = prim_abx$reference, X = Xc,
+          tau.prior = hn, beta.prior.mean = c(0,0,0), beta.prior.sd = c(1,1,1))
+ctx <- tibble(care_context = c("CA","HA","mixed"),
+  k     = as.integer(colSums(Xc)),
+  OR    = exp(mr$summary["median",    c("CA","HA","mixed")]),
+  OR_lo = exp(mr$summary["95% lower", c("CA","HA","mixed")]),
+  OR_hi = exp(mr$summary["95% upper", c("CA","HA","mixed")]),
+  P_OR_lt_1 = c(mr$pposterior(beta = 0, which = "CA"),
+                mr$pposterior(beta = 0, which = "HA"),
+                mr$pposterior(beta = 0, which = "mixed")))
+mr_tau <- sprintf("%.2f", mr$summary["median","tau"])
+# SENSITIVITY: full primary set (k = 20)
+Xc20 <- model.matrix(~ 0 + care_context, data = prim); colnames(Xc20) <- c("CA","HA","mixed")
+mr20 <- bmr(y = prim$yi, sigma = prim$sei, labels = prim$reference, X = Xc20,
+            tau.prior = hn, beta.prior.mean = c(0,0,0), beta.prior.sd = c(1,1,1))
+ctx20 <- tibble(care_context = c("CA","HA","mixed"),
+  k     = as.integer(colSums(Xc20)),
+  OR    = exp(mr20$summary["median",    c("CA","HA","mixed")]),
+  OR_lo = exp(mr20$summary["95% lower", c("CA","HA","mixed")]),
+  OR_hi = exp(mr20$summary["95% upper", c("CA","HA","mixed")]),
+  P_OR_lt_1 = c(mr20$pposterior(beta = 0, which = "CA"),
+                mr20$pposterior(beta = 0, which = "HA"),
+                mr20$pposterior(beta = 0, which = "mixed")))
+ha20   <- fmt_ci(ctx20$OR[2], ctx20$OR_lo[2], ctx20$OR_hi[2])
+ha20_p <- sprintf("%.2f", ctx20$P_OR_lt_1[2])
+
+# ---- Prior-data conflict: literature prior vs data-only estimate (Box / Marshall-Spiegelhalter) ----
+fit_vague_pdc <- bayesmeta(prim_abx$yi, prim_abx$sei, mu.prior.mean = 0, mu.prior.sd = 10, tau.prior = hn)
+pdc_md <- fit_vague_pdc$summary["mean","mu"]; pdc_sd <- fit_vague_pdc$summary["sd","mu"]
+pdc_m0 <- log(0.62); pdc_s0 <- 0.10
+pdc_z  <- (pdc_m0 - pdc_md) / sqrt(pdc_s0^2 + pdc_sd^2)
+pdc_p  <- 2 * pnorm(-abs(pdc_z))
+
+# ---- JAMA-style theme and blue-gray palette ----
+jama_navy <- "#2C4A63"; jama_blue <- "#3B6E9C"; jama_gray <- "#5A6B7B"; jama_band <- "#CBD8E3"
+theme_jama <- function(base_size = 12) {
+  theme_classic(base_size = base_size) +
+    theme(text = element_text(colour = "#1A1A1A"),
+          axis.line = element_line(colour = "#4D4D4D", linewidth = 0.4),
+          axis.ticks = element_line(colour = "#4D4D4D", linewidth = 0.4),
+          panel.grid.major.x = element_line(colour = "#EAEDF0", linewidth = 0.3),
+          plot.title = element_text(face = "bold", size = rel(1.02)),
+          plot.subtitle = element_text(colour = "#4D4D4D", size = rel(0.9)),
+          legend.position = "top", legend.title = element_blank())
+}
+```
+
+```{r toggle-assets}
+#| output: asis
+cat('
+<style>
+  body.lang-en .it { display: none; }
+  body.lang-it .en { display: none; }
+  .lang-toggle { display:flex; gap:0; border:1px solid #2c7fb8; border-radius:999px;
+    overflow:hidden; width:max-content; margin:0 0 1.5rem; }
+  .lang-toggle button { background:#fff; color:#2c7fb8; border:0; padding:.45rem 1rem;
+    cursor:pointer; font-size:.9rem; font-weight:600; }
+  .lang-toggle button.active { background:#2c7fb8; color:#fff; }
+  .card { background:#f2f7fb; border:1px solid #d4e3ef; border-radius:12px;
+    padding:1rem 1.25rem; margin:1rem 0; }
+  .big { font-size:1.6rem; font-weight:700; color:#2c7fb8; }
+  .cap { color:#5a6b7a; font-size:.88rem; margin:.3rem 0 1.4rem; }
+</style>
+<div class="lang-toggle" role="group" aria-label="Language">
+  <button id="btn-en" class="active" onclick="setLang(\'en\')">English</button>
+  <button id="btn-it" onclick="setLang(\'it\')">Italiano</button>
+</div>
+<script>
+  function setLang(l){
+    document.body.classList.remove("lang-en","lang-it");
+    document.body.classList.add("lang-"+l);
+    document.documentElement.lang = l;
+    document.getElementById("btn-en").classList.toggle("active", l==="en");
+    document.getElementById("btn-it").classList.toggle("active", l==="it");
+  }
+  document.addEventListener("DOMContentLoaded", function(){ setLang("en"); });
+</script>
+')
+```
+
+## [Research question]{.en}[Domanda di ricerca]{.it}
+
+::: {.en}
+Among patients exposed to systemic antibiotics, is exposure to a tetracycline-class
+antibiotic associated with a different risk of incident *C. difficile* infection (CDI)
+**compared with other antibiotics**? This report re-estimates the association within a
+Bayesian random-effects framework and quantifies the posterior probability of a
+protective effect. Studies whose only comparator was "no antibiotic" are analysed
+separately as a secondary comparison, per the PROSPERO protocol's PECO.
+:::
+
+::: {.it}
+Nei pazienti esposti ad antibiotici sistemici, l'esposizione a un antibiotico della
+classe delle tetracicline è associata a un rischio diverso di infezione incidente da
+*C. difficile* (ICD) **rispetto ad altri antibiotici**? Questo report ristima
+l'associazione con un modello bayesiano a effetti casuali e quantifica la probabilità a
+posteriori di un effetto protettivo. Gli studi il cui unico comparatore era "nessun
+antibiotico" sono analizzati separatamente come confronto secondario, secondo il PECO
+del protocollo PROSPERO.
+:::
+
+## [Study selection (PRISMA 2020)]{.en}[Selezione degli studi (PRISMA 2020)]{.it}
+
+![](report_figs/prisma2020_flow){fig-align="center" width="100%"}
+
+::: {.cap}
+::: {.en}
+**PRISMA 2020 flow.** Canonical PRISMA 2020 diagram (generated with the `PRISMA2020` R
+package). Identification and de-duplication counts are validated (2,926 database + 1
+register records + 95 from citation searching of Tariq 2018; 1,452 duplicates removed).
+Screening-stage counts are *provisional*, reconstructed from the Elicit AI second-screen
+pending human dual screening per the protocol (`PRISMA_flow_data.xlsx`): databases/registers
+arm 1,475 screened → 40 assessed → 11 full-text exclusions; the 95 other-methods (citation)
+reports yielded no additional eligible study. Of the 35 included studies (29 new + 6 carried
+forward from Tariq 2018), 20 contribute a curated effect size to the Bayesian meta-analysis:
+**11 in the primary comparison** (tetracyclines vs other antibiotics) and **9 in the
+secondary comparison** (tetracyclines vs no antibiotic).
+:::
+::: {.it}
+**Flusso PRISMA 2020.** Diagramma PRISMA 2020 canonico (generato con il pacchetto R
+`PRISMA2020`). I conteggi di identificazione e deduplicazione sono validati (2.926 record da
+database + 1 registro + 95 da citation searching di Tariq 2018; 1.452 duplicati rimossi). I
+conteggi della fase di screening sono *provvisori*, ricostruiti dal secondo screening AI di
+Elicit in attesa del doppio screening manuale secondo il protocollo (`PRISMA_flow_data.xlsx`):
+braccio database/registri 1.475 sottoposti a screening → 40 valutati → 11 esclusioni full-text;
+i 95 report da altri metodi (citation searching) non hanno prodotto ulteriori studi eleggibili.
+Dei 35 studi inclusi (29 nuovi + 6 trasferiti da Tariq 2018), 20 contribuiscono con una stima
+curata alla meta-analisi bayesiana: **11 nel confronto primario** (tetracicline vs altri
+antibiotici) e **9 nel confronto secondario** (tetracicline vs nessun antibiotico).
+:::
+:::
+
+## [Table 1. Characteristics of included studies]{.en}[Tabella 1. Caratteristiche degli studi inclusi]{.it}
+
+```{r tbl1, results='asis'}
+prim |>
+  arrange(exp(yi)) |>
+  transmute(
+    Study = sprintf("[@%s]", study_id),
+    Design = str_replace_all(study_design, "_", " "),
+    Setting = care_context,
+    N = ifelse(is.na(ni), "NR", formatC(ni, format = "d", big.mark = ",")),
+    Agent = str_replace_all(exposure_class, "_", " "),
+    Comparator = str_replace_all(comparator_type, "_", " "),
+    `Adj.` = ifelse(adjusted, "Yes", "No"),
+    `OR (95% CI)` = sprintf("%.2f (%.2f-%.2f)", exp(yi), exp(yi - 1.96*sei), exp(yi + 1.96*sei))) |>
+  knitr::kable(format = "pipe", align = "lllrllcr") |>
+  cat(sep = "\n")
+```
+
+::: {.cap}
+::: {.en}
+**Table 1.** Characteristics of the 20 studies contributing to the Bayesian synthesis
+(11 vs other antibiotics; 9 vs no antibiotic; ordered by odds ratio). N = analytic sample
+size (NR = not reported); Adj. = adjusted estimate. The OR is the single curated effect size
+carried into the meta-analysis; each study is identified by its bibliographic citation.
+:::
+::: {.it}
+**Tabella 1.** Caratteristiche dei 20 studi nella sintesi bayesiana (11 vs altri antibiotici;
+9 vs nessun antibiotico; ordinati per odds ratio). N = dimensione campionaria analitica
+(NR = non riportata); Adj. = stima aggiustata. L'OR è la singola stima d'effetto curata
+usata nella meta-analisi; ogni studio è identificato dalla relativa citazione bibliografica.
+:::
+:::
+
+## [Risk of bias (Newcastle-Ottawa Scale)]{.en}[Rischio di bias (scala Newcastle-Ottawa)]{.it}
+
+::: {.en}
+All 20 studies contributing to the synthesis are observational, so risk of bias was
+assessed with the Newcastle-Ottawa Scale (NOS) [@WellsNOS], using the design-appropriate
+version (cohort or case-control; maximum 9 stars across the Selection, Comparability and
+Outcome/Exposure domains). Uniform decision rules were applied: the case-definition item
+was credited only for laboratory-confirmed or independently validated definitions
+(unvalidated ICD/claims algorithms were not); comparability stars required matching or
+adjustment for age/sex (first star) and for additional key confounders (second star), so
+studies whose curated estimate is unadjusted beyond matching received one comparability
+star; for cohorts, completeness of follow-up was credited only for closed healthcare
+systems (HMO, claims or population registers). Overall ratings: 7-9 stars = **low** risk
+of bias, 5-6 = **some concerns**, 4 or fewer = **high**. Per-item scores and
+study-level justifications are recorded in `nos_assessment.csv`.
+:::
+::: {.it}
+Tutti i 20 studi che contribuiscono alla sintesi sono osservazionali; il rischio di bias è
+stato valutato con la scala Newcastle-Ottawa (NOS) [@WellsNOS], nella versione appropriata
+al disegno (coorte o caso-controllo; massimo 9 stelle nei domini Selezione, Comparabilità
+ed Esito/Esposizione). Sono state applicate regole decisionali uniformi: la definizione di
+caso è stata accreditata solo se confermata in laboratorio o basata su codici validati
+(gli algoritmi ICD/claims non validati non ricevono la stella); le stelle di comparabilità
+richiedono appaiamento o aggiustamento per età/sesso (prima stella) e per ulteriori
+confondenti chiave (seconda stella), per cui gli studi la cui stima curata non è
+aggiustata oltre l'appaiamento ricevono una sola stella; per le coorti, la completezza del
+follow-up è stata accreditata solo per sistemi sanitari chiusi (HMO, claims o registri di
+popolazione). Valutazioni complessive: 7-9 stelle = rischio di bias **basso**, 5-6 =
+**alcune perplessità**, 4 o meno = **alto**. I punteggi per singolo item e le
+giustificazioni per studio sono registrati in `nos_assessment.csv`.
+:::
+
+```{r rob-table}
+#| results: asis
+nos |>
+  arrange(desc(total), study) |>
+  transmute(
+    Study = sprintf("[@%s]", study_id),
+    Design = design,
+    Set = analysis_set,
+    `Selection (0-4)` = sel1 + sel2 + sel3 + sel4,
+    `Comparability (0-2)` = comp1 + comp2,
+    `Outcome/Exposure (0-3)` = oe1 + oe2 + oe3,
+    `Total (0-9)` = total,
+    `Overall RoB` = rob_overall) |>
+  knitr::kable(format = "pipe", align = "lllrrrrl") |>
+  cat(sep = "\n")
+```
+
+::: {.cap}
+::: {.en}
+**Table 2.** Newcastle-Ottawa assessment of the 20 studies in the synthesis (domain
+subtotals; maxima 4/2/3 stars, 9 overall). Selection covers case/cohort definition,
+representativeness, comparison-group selection and absence of the outcome at baseline
+(definition of controls for case-control studies); Outcome/Exposure covers ascertainment
+of outcome (cohorts) or exposure (case-control studies), comparability of ascertainment
+across groups, and follow-up/non-response.
+:::
+::: {.it}
+**Tabella 2.** Valutazione Newcastle-Ottawa dei 20 studi della sintesi (subtotali per
+dominio; massimi 4/2/3 stelle, 9 complessive). La selezione copre definizione di
+caso/coorte, rappresentatività, selezione del gruppo di confronto e assenza dell'esito al
+baseline (definizione dei controlli per i caso-controllo); Esito/Esposizione copre
+l'accertamento dell'esito (coorti) o dell'esposizione (caso-controllo), la comparabilità
+dell'accertamento tra i gruppi e il follow-up/non-risposta.
+:::
+:::
+
+```{r rob-plot}
+#| fig-width: 6.5
+#| fig-height: 7
+nos |>
+  mutate(
+    Selection = case_when(sel1 + sel2 + sel3 + sel4 >= 3 ~ "Low",
+                          sel1 + sel2 + sel3 + sel4 == 2 ~ "Some concerns", TRUE ~ "High"),
+    Comparability = case_when(comp1 + comp2 == 2 ~ "Low",
+                              comp1 + comp2 == 1 ~ "Some concerns", TRUE ~ "High"),
+    `Outcome / Exposure` = case_when(oe1 + oe2 + oe3 == 3 ~ "Low",
+                                     oe1 + oe2 + oe3 == 2 ~ "Some concerns", TRUE ~ "High"),
+    Overall = rob_overall) |>
+  pivot_longer(c(Selection, Comparability, `Outcome / Exposure`, Overall),
+               names_to = "domain", values_to = "rating") |>
+  mutate(domain = factor(domain, levels = c("Selection", "Comparability",
+                                            "Outcome / Exposure", "Overall")),
+         rating = factor(rating, levels = c("Low", "Some concerns", "High")),
+         study  = reorder(study, total)) |>
+  ggplot(aes(x = domain, y = study, fill = rating)) +
+  geom_tile(colour = "white", linewidth = 0.8) +
+  scale_fill_manual(values = c("Low" = "#4C9A62", "Some concerns" = "#E9B44C",
+                               "High" = "#C0504D"), drop = FALSE) +
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid = element_blank(), legend.position = "bottom")
+```
+
+::: {.cap}
+::: {.en}
+**Traffic-light plot.** Domain-level risk-of-bias ratings. Domain rules: Selection low if
+at least 3 of 4 stars; Comparability low with 2 stars, some concerns with 1;
+Outcome/Exposure low with 3 stars, some concerns with 2. Overall: 7-9 low, 5-6 some
+concerns, 4 or fewer high.
+:::
+::: {.it}
+**Traffic-light plot.** Valutazioni di rischio di bias per dominio. Regole: Selezione
+bassa con almeno 3 stelle su 4; Comparabilità bassa con 2 stelle, alcune perplessità con
+1; Esito/Esposizione bassa con 3 stelle, alcune perplessità con 2. Complessivo: 7-9
+basso, 5-6 alcune perplessità, 4 o meno alto.
+:::
+:::
+
+::: {.en}
+`r n_low` of 20 studies reach 7 or more stars (low risk of bias). Recurring limitations
+are case definitions based on unvalidated diagnostic codes (selection), hospital-based
+controls in smaller case-control studies (selection), reliance on unadjusted per-drug
+estimates (comparability), and uncertain completeness of post-discharge outcome capture
+in hospital-discharge cohorts (outcome). For the six studies carried forward from Tariq
+et al. (2018), our independent scores (median 8, range 7-9) are consistent with theirs
+(median 7, range 7-8) [@Tariq2018].
+
+The pre-specified sensitivity analysis excluding studies at higher risk of bias (NOS
+below 7) removes only Predrag 2016: the primary estimate is unchanged because all 11
+antibiotic-comparator studies are low risk (OR
+`r fmt_ci(sens_prim$OR, sens_prim$OR_lo, sens_prim$OR_hi)`), and the secondary,
+no-antibiotic comparison becomes OR
+`r fmt_ci(sens_sec$OR, sens_sec$OR_lo, sens_sec$OR_hi)` (k = 8). Conclusions are
+therefore robust to study quality as assessed here.
+:::
+::: {.it}
+`r n_low` studi su 20 raggiungono almeno 7 stelle (basso rischio di bias). Le limitazioni
+ricorrenti sono definizioni di caso basate su codici diagnostici non validati
+(selezione), controlli ospedalieri negli studi caso-controllo più piccoli (selezione),
+affidamento a stime per singolo farmaco non aggiustate (comparabilità) e incerta
+completezza della cattura dell'esito dopo la dimissione nelle coorti ospedaliere (esito).
+Per i sei studi trasferiti da Tariq et al. (2018), i nostri punteggi indipendenti
+(mediana 8, intervallo 7-9) sono coerenti con i loro (mediana 7, intervallo 7-8)
+[@Tariq2018].
+
+L'analisi di sensibilità pre-specificata che esclude gli studi a maggior rischio di bias
+(NOS inferiore a 7) rimuove solo Predrag 2016: la stima primaria è invariata perché tutti
+gli 11 studi con comparatore antibiotico sono a basso rischio (OR
+`r fmt_ci(sens_prim$OR, sens_prim$OR_lo, sens_prim$OR_hi)`), e il confronto secondario
+(vs nessun antibiotico) diventa OR
+`r fmt_ci(sens_sec$OR, sens_sec$OR_lo, sens_sec$OR_hi)` (k = 8). Le conclusioni sono
+quindi robuste rispetto alla qualità degli studi così come valutata qui.
+:::
+
+::: {.callout-warning}
+::: {.en}
+**Provisional assessment.** The protocol requires independent, duplicate full-text
+assessment by two reviewers. The scores above are a single-reviewer assessment based on
+the extraction database — whose covariate matrix is still unpopulated and whose estimate
+rows are all marked unverified — and should be re-confirmed against the full articles
+before being considered final.
+:::
+::: {.it}
+**Valutazione provvisoria.** Il protocollo richiede una valutazione indipendente, in
+doppio, sul full-text da parte di due revisori. I punteggi sopra riportati derivano da
+una valutazione di un singolo revisore basata sul database di estrazione — la cui matrice
+delle covariate non è ancora popolata e le cui righe di stima risultano tutte non
+verificate — e devono essere riconfermati sugli articoli integrali prima di essere
+considerati definitivi.
+:::
+:::
+
+## [Methods]{.en}[Metodi]{.it}
+
+::: {.en}
+Hierarchical random-effects model on the log-odds scale:
+$$y_i \sim \text{Normal}(\theta_i, s_i^2), \qquad \theta_i \sim \text{Normal}(\mu, \tau^2).$$
+Primary prior $\mu \sim \text{Normal}(0, 1^2)$; heterogeneity prior
+$\tau \sim \text{Half-Normal}(0, 0.5)$. Posteriors were computed exactly by numerical
+integration (`bayesmeta`) and independently confirmed by Hamiltonian Monte Carlo
+(`brms`/Stan, 4 chains). We report the pooled odds ratio (OR = exp $\mu$) with a 95%
+credible interval (CrI), the between-study SD $\tau$, the predictive interval for a new
+study, and the posterior probabilities P(OR<1) and P(OR<0.80). A pre-specified
+prior-sensitivity analysis used vague, sceptical and literature-informed priors.
+:::
+
+::: {.it}
+Modello gerarchico a effetti casuali su scala log-odds:
+$$y_i \sim \text{Normale}(\theta_i, s_i^2), \qquad \theta_i \sim \text{Normale}(\mu, \tau^2).$$
+Prior primario $\mu \sim \text{Normale}(0, 1^2)$; prior sull'eterogeneità
+$\tau \sim \text{Half-Normale}(0, 0.5)$. Le distribuzioni a posteriori sono state
+calcolate in modo esatto per integrazione numerica (`bayesmeta`) e confermate in modo
+indipendente con Hamiltonian Monte Carlo (`brms`/Stan, 4 catene). Riportiamo l'odds ratio
+aggregato (OR = exp $\mu$) con intervallo di credibilità (ICr) al 95%, la deviazione
+standard tra studi $\tau$, l'intervallo predittivo per un nuovo studio e le probabilità a
+posteriori P(OR<1) e P(OR<0,80). Un'analisi di sensibilità sui prior pre-specificata ha
+usato prior vago, scettico e informato dalla letteratura.
+:::
+
+## [Primary result (11 studies)]{.en}[Risultato primario (11 studi)]{.it}
+
+::: {.card}
+::: {.en}
+Pooled odds ratio (tetracyclines vs other antibiotics)
+<span class="big">`r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`</span>
+
+The 95% credible interval crosses 1. The posterior probability of any protective effect
+is **P(OR<1) = `r sprintf("%.2f", P$P_OR_lt_1)`**, and the probability of a clinically
+meaningful effect is **P(OR<0.80) = `r sprintf("%.2f", P$P_OR_lt_080)`**. Between-study
+heterogeneity is substantial ($\tau$ = `r fmt_ci(P$tau, P$tau_lo, P$tau_hi)`;
+I² = `r i2_txt`): the
+predictive interval for a future study spans OR
+`r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`.
+:::
+::: {.it}
+Odds ratio aggregato (tetracicline vs altri antibiotici)
+<span class="big">`r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`</span>
+
+L'intervallo di credibilità al 95% attraversa 1. La probabilità a posteriori di un
+qualsiasi effetto protettivo è **P(OR<1) = `r sprintf("%.2f", P$P_OR_lt_1)`**, e la
+probabilità di un effetto clinicamente rilevante è
+**P(OR<0,80) = `r sprintf("%.2f", P$P_OR_lt_080)`**. L'eterogeneità tra studi è
+sostanziale ($\tau$ = `r fmt_ci(P$tau, P$tau_lo, P$tau_hi)`; I² = `r i2_txt`):
+l'intervallo predittivo per
+uno studio futuro va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`.
+:::
+:::
+
+```{r fig-forest, fig.width=8, fig.height=5.2, cache=TRUE}
+pooled <- getp("primary")
+fit_prim <- bayesmeta(prim_abx$yi, prim_abx$sei, labels = prim_abx$reference,
+                      mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn)
+th  <- fit_prim$theta                                    # per-study posterior (shrinkage)
+ord <- prim_abx |> arrange(exp(yi)) |> pull(reference)
+fdf <- bind_rows(
+  prim_abx |> transmute(study = reference, type = "Observed (study estimate)",
+                        OR = exp(yi), lo = exp(yi - 1.96*sei), hi = exp(yi + 1.96*sei)),
+  tibble(study = colnames(th), type = "Bayesian posterior (shrinkage)",
+         OR = exp(th["median",]), lo = exp(th["95% lower",]), hi = exp(th["95% upper",]))
+) |> mutate(study = factor(study, levels = ord),
+            type = factor(type, levels = c("Observed (study estimate)",
+                                           "Bayesian posterior (shrinkage)")))
+
+priors_v <- tibble(
+  label = factor(c("Sceptical prior", "Literature-informed prior"),
+                 levels = c("Sceptical prior", "Literature-informed prior")),
+  OR = c(res_abx$OR[res_abx$prior == "sceptical"], res_abx$OR[res_abx$prior == "literature"]))
+sens_lo <- min(priors_v$OR, pooled$OR); sens_hi <- max(priors_v$OR, pooled$OR)
+
+ggplot(fdf, aes(OR, study, colour = type)) +
+  annotate("rect", xmin = sens_lo, xmax = sens_hi, ymin = -Inf, ymax = Inf,
+           fill = jama_navy, alpha = 0.06) +
+  annotate("rect", xmin = pooled$OR_lo, xmax = pooled$OR_hi, ymin = -Inf, ymax = Inf,
+           fill = jama_band, alpha = 0.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_vline(xintercept = pooled$OR, colour = jama_navy, linewidth = 0.7) +
+  geom_vline(data = priors_v, aes(xintercept = OR, linetype = label),
+             colour = jama_navy, linewidth = 0.5) +
+  geom_pointrange(aes(xmin = lo, xmax = hi), position = position_dodge(width = 0.6), size = 0.4) +
+  scale_colour_manual(values = c("Observed (study estimate)" = jama_gray,
+                                 "Bayesian posterior (shrinkage)" = jama_blue)) +
+  scale_linetype_manual(values = c("Sceptical prior" = "dotted",
+                                   "Literature-informed prior" = "longdash")) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4, 10)) +
+  labs(x = "Odds ratio (log scale)", y = NULL, linetype = "Pooled OR under prior") +
+  guides(colour = guide_legend(order = 1), linetype = guide_legend(order = 2)) +
+  theme_jama() + theme(legend.box = "vertical", legend.spacing.y = unit(1, "pt"))
+```
+
+::: {.cap}
+::: {.en}
+**Figure 1.** Study-level odds ratios (primary set, 11 studies with antibiotic comparators).
+Gray = observed estimates; blue = Bayesian posterior (shrinkage) estimates, pulled toward
+the pooled mean. The navy line and blue band show the pooled OR (primary prior) and 95%
+credible interval. The dotted and long-dashed vertical lines mark the pooled OR under the
+sceptical and literature-informed priors; the faint outer band is the prior-sensitivity range.
+:::
+::: {.it}
+**Figura 1.** Odds ratio per studio (set primario, 11 studi con comparatori antibiotici).
+Grigio = stime osservate; blu = stime a posteriori bayesiane (shrinkage), attratte verso la
+media aggregata. La linea navy e la banda blu indicano l'OR aggregato (prior primario) e
+l'ICr al 95%. Le linee verticali punteggiata e tratteggiata indicano l'OR aggregato con i
+prior scettico e informato dalla letteratura; la banda esterna tenue è l'intervallo di
+sensibilità ai prior.
+:::
+:::
+
+## [Prior sensitivity]{.en}[Sensibilità ai prior]{.it}
+
+::: {.en}
+The estimate is stable across data-dominated priors (primary, vague, sceptical) but
+shifts toward protection under the literature-informed prior centred on the earlier Tariq
+(2018) estimate of OR 0.62 — i.e. that conclusion is driven by prior belief, not the new data.
+:::
+::: {.it}
+La stima è stabile tra i prior dominati dai dati (primario, vago, scettico) ma si sposta
+verso la protezione con il prior informato dalla letteratura, centrato sulla stima
+precedente di Tariq (2018), OR 0,62 — cioè quella conclusione è guidata dalla convinzione
+a priori, non dai nuovi dati.
+:::
+
+::: {.en}
+```{r tbl-prior-en}
+res_abx |>
+  transmute(
+    `Prior on μ` = c("Primary \u2014 N(0, 1\u00b2)", "Vague \u2014 N(0, 10\u00b2)",
+                          "Sceptical \u2014 N(0, 0.35\u00b2)", "Literature \u2014 N(log 0.62, 0.10\u00b2)"),
+    `OR (95% CrI)` = fmt_ci(OR, OR_lo, OR_hi),
+    `P(OR<1)` = sprintf("%.2f", P_OR_lt_1),
+    `P(OR<0.80)` = sprintf("%.2f", P_OR_lt_080)) |>
+  kable(align = "lccc")
+```
+:::
+::: {.it}
+```{r tbl-prior-it}
+res_abx |>
+  transmute(
+    `Prior su μ` = c("Primario \u2014 N(0, 1\u00b2)", "Vago \u2014 N(0, 10\u00b2)",
+                          "Scettico \u2014 N(0, 0,35\u00b2)", "Letteratura \u2014 N(log 0,62, 0,10\u00b2)"),
+    `OR (ICr 95%)` = fmt_ci(OR, OR_lo, OR_hi),
+    `P(OR<1)` = sprintf("%.2f", P_OR_lt_1),
+    `P(OR<0,80)` = sprintf("%.2f", P_OR_lt_080)) |>
+  kable(align = "lccc")
+```
+:::
+
+## [Prior-data conflict]{.en}[Conflitto prior-dati]{.it}
+
+::: {.en}
+Because the literature-informed prior is the only assumption under which the result becomes
+confidently protective, we formally check whether it conflicts with the updated data. Using
+the Box / Marshall-Spiegelhalter measure, we compare the prior for μ — N(log 0.62, 0.10²),
+i.e. OR 0.62 — against the data-only estimate (vague-prior posterior:
+OR `r sprintf("%.2f", exp(pdc_md))`, log-scale mean `r sprintf("%.2f", pdc_md)`,
+SD `r sprintf("%.2f", pdc_sd)`). The conflict statistic is z = `r sprintf("%.2f", pdc_z)`
+(two-sided p = `r sprintf("%.2f", pdc_p)`), indicating **mild tension but no formal
+conflict**. The literature prior is more optimistic than the updated evidence, but the gap
+is within sampling variation. Its influence on the pooled estimate comes mainly from being
+far narrower (SD 0.10) than the data-only posterior (SD `r sprintf("%.2f", pdc_sd)`) rather
+than from statistical incompatibility with the data.
+:::
+::: {.it}
+Poiché il prior informato dalla letteratura è l'unica assunzione sotto cui il risultato
+diventa decisamente protettivo, verifichiamo formalmente se sia in conflitto con i dati
+aggiornati. Con la misura di Box / Marshall-Spiegelhalter confrontiamo il prior per μ —
+N(log 0,62, 0,10²), cioè OR 0,62 — con la stima basata sui soli dati (posteriori con prior
+vago: OR `r sprintf("%.2f", exp(pdc_md))`, media log `r sprintf("%.2f", pdc_md)`,
+SD `r sprintf("%.2f", pdc_sd)`). La statistica di conflitto è z = `r sprintf("%.2f", pdc_z)`
+(p bilaterale = `r sprintf("%.2f", pdc_p)`), indicando **una lieve tensione ma nessun
+conflitto formale**. Il prior della letteratura è più ottimistico delle evidenze aggiornate,
+ma la differenza rientra nella variabilità campionaria. La sua influenza deriva soprattutto
+dall'essere molto più stretto (SD 0,10) della posteriori basata sui dati
+(SD `r sprintf("%.2f", pdc_sd)`), non da un'incompatibilità statistica con i dati.
+:::
+
+## [MCMC confirmation & convergence]{.en}[Conferma MCMC e convergenza]{.it}
+
+```{r brms-fit}
+library(brms)
+# brms/Stan MCMC fit (4 chains) on the primary set, precomputed and stored as RDS so that
+# rendering never triggers Stan recompilation. Reproduce with the commented call below
+# (re-run whenever prim_abx changes, then re-save the RDS).
+bfit <- readRDS("brms_fit_primary.rds")
+# bfit <- brm(bf(yi | se(sei) ~ 1 + (1 | study_id)), data = prim_abx,
+#             prior = c(prior(normal(0, 1), class = Intercept),
+#                       prior(normal(0, 0.5), class = sd)),
+#             chains = 4, iter = 4000, warmup = 1000, cores = 4,
+#             control = list(adapt_delta = 0.99), seed = 7291, refresh = 0)
+
+library(posterior)
+dm  <- as_draws_df(bfit)[["b_Intercept"]]
+dt  <- as_draws_df(bfit)[["sd_study_id__Intercept"]]
+brms_row <- tibble(source = "brms (MCMC)",
+                   OR = exp(median(dm)), OR_lo = exp(quantile(dm,.025)), OR_hi = exp(quantile(dm,.975)),
+                   tau = median(dt), P1 = mean(dm < 0), P08 = mean(dm < log(0.80)))
+bmeta_row <- tibble(source = "bayesmeta (exact)",
+                    OR = P$OR, OR_lo = P$OR_lo, OR_hi = P$OR_hi,
+                    tau = P$tau, P1 = P$P_OR_lt_1, P08 = P$P_OR_lt_080)
+dg <- summarise_draws(
+  as_draws_df(bfit)[, c("b_Intercept","sd_study_id__Intercept")],
+  "rhat","ess_bulk","ess_tail")
+```
+
+::: {.en}
+The two engines agree to within Monte Carlo error, confirming the exact posterior. All
+diagnostics indicate good convergence.
+:::
+::: {.it}
+I due motori concordano entro l'errore Monte Carlo, confermando la posteriori esatta.
+Tutti gli indici indicano una buona convergenza.
+:::
+
+::: {.en}
+```{r tbl-confirm-en}
+bind_rows(bmeta_row, brms_row) |>
+  transmute(Method = source, `OR (95% CrI)` = fmt_ci(OR, OR_lo, OR_hi),
+            `τ` = sprintf("%.2f", tau),
+            `P(OR<1)` = sprintf("%.2f", P1), `P(OR<0.80)` = sprintf("%.2f", P08)) |>
+  kable(align = "lcccc")
+
+dg |> transmute(Parameter = c("\u03bc (log-OR)","\u03c4 (heterogeneity SD)"),
+                `R-hat` = sprintf("%.3f", rhat),
+                `Bulk ESS` = round(ess_bulk), `Tail ESS` = round(ess_tail)) |>
+  kable(align = "lccc")
+```
+:::
+::: {.it}
+```{r tbl-confirm-it}
+bind_rows(bmeta_row, brms_row) |>
+  transmute(Metodo = source, `OR (ICr 95%)` = fmt_ci(OR, OR_lo, OR_hi),
+            `τ` = sprintf("%.2f", tau),
+            `P(OR<1)` = sprintf("%.2f", P1), `P(OR<0,80)` = sprintf("%.2f", P08)) |>
+  kable(align = "lcccc")
+
+dg |> transmute(Parametro = c("\u03bc (log-OR)","\u03c4 (SD eterogeneità)"),
+                `R-hat` = sprintf("%.3f", rhat),
+                `ESS bulk` = round(ess_bulk), `ESS tail` = round(ess_tail)) |>
+  kable(align = "lccc")
+```
+:::
+
+```{r fig-trace, fig.width=8, fig.height=4}
+library(bayesplot)
+mcmc_trace(bfit, pars = c("b_Intercept", "sd_study_id__Intercept"))
+```
+
+::: {.cap}
+::: {.en}
+**Figure 2.** MCMC trace plots for the four chains (pooled log-OR and heterogeneity SD).
+:::
+::: {.it}
+**Figura 2.** Trace plot MCMC per le quattro catene (log-OR aggregato e SD dell'eterogeneità).
+:::
+:::
+
+## [Small-study effects]{.en}[Effetti dei piccoli studi]{.it}
+
+::: {.en}
+With k = 11 studies (meeting the pre-specified ≥10 threshold), a contour-enhanced funnel
+plot and Egger's regression test assess funnel asymmetry. There is **no evidence of
+asymmetry** (Egger z = `r sprintf("%.2f", egg$zval)`, p = `r sprintf("%.2f", egg$pval)`);
+the studies scatter fairly symmetrically about the pooled effect. Given the observational
+evidence base and modest k, this is reassuring but not decisive.
+:::
+::: {.it}
+Con k = 11 studi (soglia pre-specificata ≥10), un funnel plot contour-enhanced e il test di
+regressione di Egger valutano l'asimmetria. **Non vi è evidenza di asimmetria**
+(Egger z = `r sprintf("%.2f", egg$zval)`, p = `r sprintf("%.2f", egg$pval)`); gli studi si
+distribuiscono in modo abbastanza simmetrico attorno all'effetto aggregato. Data la natura
+osservazionale e il k contenuto, è rassicurante ma non decisivo.
+:::
+
+```{r fig-funnel, fig.width=7, fig.height=5.5}
+funnel(rma_abx, level = c(90, 95, 99),
+       shade = c("white", "#D7E0E8", "#B4C6D6"),
+       refline = 0, col = jama_navy, bg = jama_blue,
+       legend = TRUE, xlab = "Log odds ratio")
+```
+
+::: {.cap}
+::: {.en}
+**Figure 3.** Contour-enhanced funnel plot; shaded bands mark the p = 0.10 / 0.05 / 0.01 regions.
+:::
+::: {.it}
+**Figura 3.** Funnel plot contour-enhanced; le bande indicano le regioni p = 0,10 / 0,05 / 0,01.
+:::
+:::
+
+## [Leave-one-out]{.en}[Analisi leave-one-out]{.it}
+
+::: {.en}
+No single study drives the pooled estimate: removing any one study leaves the pooled OR
+between `r sprintf("%.2f", min(loo$OR))` and `r sprintf("%.2f", max(loo$OR))`, always below
+1. The most influential study is Saito 2025 (a harmful outlier); dropping it moves the OR
+most toward protection, while dropping the protective Watson 2018 moves it toward the null.
+The qualitative conclusion is stable throughout.
+:::
+::: {.it}
+Nessun singolo studio determina la stima aggregata: rimuovendo un qualsiasi studio l'OR
+aggregato resta tra `r sprintf("%.2f", min(loo$OR))` e `r sprintf("%.2f", max(loo$OR))`,
+sempre inferiore a 1. Lo studio più influente è Saito 2025 (un outlier sfavorevole): la sua
+rimozione sposta l'OR verso la protezione, mentre rimuovere il protettivo Watson 2018 lo
+sposta verso l'assenza di effetto. La conclusione qualitativa resta stabile.
+:::
+
+```{r fig-loo, fig.width=8, fig.height=5}
+lp <- getp("primary")
+loo |> arrange(OR) |> mutate(dropped = factor(dropped, levels = dropped)) |>
+  ggplot(aes(OR, dropped)) +
+  annotate("rect", xmin = lp$OR_lo, xmax = lp$OR_hi, ymin = -Inf, ymax = Inf,
+           fill = jama_band, alpha = 0.5) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_vline(xintercept = lp$OR, colour = jama_navy, linewidth = 0.7) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_gray, size = 0.4) +
+  scale_x_log10(breaks = c(0.5, 0.7, 1, 1.3)) +
+  labs(x = "Pooled OR after removing the study (log scale)", y = "Study removed") +
+  theme_jama()
+```
+
+::: {.cap}
+::: {.en}
+**Figure 4.** Leave-one-out pooled OR; the blue line and band are the full k = 11 estimate and 95% CrI.
+:::
+::: {.it}
+**Figura 4.** OR aggregato leave-one-out; la linea e la banda blu sono la stima completa k = 11 e l'ICr al 95%.
+:::
+:::
+
+## [Doxycycline-only sensitivity analysis]{.en}[Analisi di sensibilità: sola doxiciclina]{.it}
+
+```{r doxy-sens}
+# Pre-specified sensitivity analysis: the primary antibiotic-comparator set (k = 11)
+# restricted to doxycycline-exposure studies, keeping the primary prior. Reuses the
+# doxycycline row already computed in `res_sub` (see setup).
+D <- as.list(res_sub[res_sub$analysis == "doxycycline", ])
+```
+
+::: {.en}
+Doxycycline is the dominant tetracycline in the evidence base and the agent most often
+invoked for anaerobe-sparing activity, so we pre-specified a sensitivity analysis restricting
+the primary antibiotic-comparator set to doxycycline-exposure studies (k = `r D$k`), keeping
+the primary prior. The pooled odds ratio is **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** with
+P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)` and P(OR<0.80) = `r sprintf("%.2f", D$P_OR_lt_080)`. Restricting
+to a single agent roughly halves the between-study heterogeneity
+(τ = `r sprintf("%.2f", D$tau)` vs `r sprintf("%.2f", P$tau)` in the full primary set) and
+tightens the predictive interval for a new study to OR
+`r sprintf("%.2f\u2013%.2f", D$pred_lo, D$pred_hi)`. The doxycycline estimate is more precise
+and more consistently below 1 than the all-tetracycline estimate, but its 95% credible
+interval still touches 1 — a stronger, yet still not definitive, protective signal.
+:::
+::: {.it}
+La doxiciclina è la tetraciclina prevalente nella base di evidenze e l'agente più spesso
+citato per l'attività di risparmio degli anaerobi; abbiamo quindi pre-specificato un'analisi
+di sensibilità che limita il set primario con comparatore antibiotico agli studi con
+esposizione a doxiciclina (k = `r D$k`), mantenendo il prior primario. L'odds ratio aggregato
+è **`r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`** con P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)` e
+P(OR<0,80) = `r sprintf("%.2f", D$P_OR_lt_080)`. Limitarsi a un singolo agente dimezza circa
+l'eterogeneità tra studi (τ = `r sprintf("%.2f", D$tau)` vs `r sprintf("%.2f", P$tau)` nel set
+primario completo) e restringe l'intervallo predittivo per un nuovo studio a OR
+`r sprintf("%.2f\u2013%.2f", D$pred_lo, D$pred_hi)`. La stima per la doxiciclina è più precisa
+e più costantemente inferiore a 1 rispetto alla stima su tutte le tetracicline, ma il suo
+intervallo di credibilità al 95% tocca ancora 1 — un segnale protettivo più forte, ma non
+ancora definitivo.
+:::
+
+::: {.en}
+```{r tbl-doxy-en}
+tibble(
+  Analysis = c("All tetracyclines (primary)", "Doxycycline only"),
+  `Studies (k)` = c(nrow(prim_abx), D$k),
+  `OR (95% CrI)` = c(fmt_ci(P$OR, P$OR_lo, P$OR_hi), fmt_ci(D$OR, D$OR_lo, D$OR_hi)),
+  `τ` = sprintf("%.2f", c(P$tau, D$tau)),
+  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P_OR_lt_1)),
+  `P(OR<0.80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P_OR_lt_080))
+) |>
+  kable(align = "lccccc")
+```
+:::
+::: {.it}
+```{r tbl-doxy-it}
+tibble(
+  Analisi = c("Tutte le tetracicline (primario)", "Solo doxiciclina"),
+  `Studi (k)` = c(nrow(prim_abx), D$k),
+  `OR (ICr 95%)` = c(fmt_ci(P$OR, P$OR_lo, P$OR_hi), fmt_ci(D$OR, D$OR_lo, D$OR_hi)),
+  `τ` = sprintf("%.2f", c(P$tau, D$tau)),
+  `P(OR<1)` = sprintf("%.2f", c(P$P_OR_lt_1, D$P_OR_lt_1)),
+  `P(OR<0,80)` = sprintf("%.2f", c(P$P_OR_lt_080, D$P_OR_lt_080))
+) |>
+  kable(align = "lccccc")
+```
+:::
+
+::: {.cap}
+::: {.en}
+**Table 2.** Doxycycline-only sensitivity analysis versus the full primary set. Restricting
+to doxycycline exposure lowers heterogeneity and sharpens the protective signal, though the
+credible interval still includes OR = 1.
+:::
+::: {.it}
+**Tabella 2.** Analisi di sensibilità sulla sola doxiciclina rispetto al set primario
+completo. Limitarsi all'esposizione a doxiciclina riduce l'eterogeneità e rende più netto il
+segnale protettivo, benché l'intervallo di credibilità includa ancora OR = 1.
+:::
+:::
+
+```{r fig-doxy, fig.width=7.5, fig.height=4}
+doxy_studies <- prim_abx |>
+  dplyr::filter(exposure_class == "doxycycline") |>
+  transmute(label = reference, type = "Doxycycline study (observed)",
+            OR = exp(yi), OR_lo = exp(yi - 1.96 * sei), OR_hi = exp(yi + 1.96 * sei))
+pooled_rows <- tibble(
+  label = c("Doxycycline only (pooled, k = 6)", "All tetracyclines (pooled, k = 11)"),
+  type  = "Pooled estimate",
+  OR    = c(D$OR, P$OR), OR_lo = c(D$OR_lo, P$OR_lo), OR_hi = c(D$OR_hi, P$OR_hi))
+lev <- c("All tetracyclines (pooled, k = 11)", "Doxycycline only (pooled, k = 6)",
+         doxy_studies |> arrange(desc(OR)) |> pull(label))
+bind_rows(doxy_studies, pooled_rows) |>
+  mutate(label = factor(label, levels = lev),
+         type  = factor(type, levels = c("Doxycycline study (observed)", "Pooled estimate"))) |>
+  ggplot(aes(OR, label, colour = type)) +
+  annotate("rect", xmin = D$OR_lo, xmax = D$OR_hi, ymin = -Inf, ymax = Inf,
+           fill = jama_band, alpha = 0.4) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), size = 0.45) +
+  geom_text(aes(label = sprintf("%.2f (%.2f-%.2f)", OR, OR_lo, OR_hi)),
+            vjust = -1, size = 3.2, colour = "#1A1A1A") +
+  scale_colour_manual(values = c("Doxycycline study (observed)" = jama_gray,
+                                 "Pooled estimate" = jama_navy)) +
+  scale_x_log10(breaks = c(0.1, 0.25, 0.5, 1, 2, 4)) +
+  labs(x = "Odds ratio (log scale)", y = NULL, colour = NULL) +
+  theme_jama()
+```
+
+::: {.cap}
+::: {.en}
+**Figure 5.** Forest plot of the doxycycline-only sensitivity analysis. Gray points are the
+six doxycycline-exposure studies (observed ORs, 95% CIs); navy points are the pooled Bayesian
+estimates for the doxycycline-only subset (k = 6) and the full primary set (k = 11). The
+shaded band is the doxycycline-only 95% credible interval; the dashed line marks OR = 1.
+:::
+::: {.it}
+**Figura 5.** Forest plot dell'analisi di sensibilità sulla sola doxiciclina. I punti grigi
+sono i sei studi con esposizione a doxiciclina (OR osservati, IC 95%); i punti navy sono le
+stime bayesiane aggregate per il sottoinsieme doxiciclina (k = 6) e per il set primario
+completo (k = 11). La banda ombreggiata è l'intervallo di credibilità al 95% della sola
+doxiciclina; la linea tratteggiata indica OR = 1.
+:::
+:::
+
+## [Additional sensitivity analyses]{.en}[Analisi di sensibilità aggiuntive]{.it}
+
+::: {.en}
+**Adjusted-only secondary comparison.** Restricting the no-antibiotic comparison to the
+three studies with multivariable-adjusted estimates (Delaney 2007, Dial 2008, Brown 2016)
+gives OR `r fmt_ci(sens_sec_adj$OR, sens_sec_adj$OR_lo, sens_sec_adj$OR_hi)` (k = 3),
+P(OR<1) = `r sprintf("%.2f", sens_sec_adj$P_OR_lt_1)` — consistent with the full
+secondary set, with a wider interval reflecting the smaller evidence base.
+
+**Excluding ratio-metric conversions.** The curated estimates of Doernberg 2012 (adjusted
+HR), Dial 2008 (adjusted RR) and Brown 2016 (adjusted IRR) enter the analysis as ORs
+under a rare-outcome approximation. Excluding them leaves the primary estimate
+essentially unchanged (k = 10; OR
+`r fmt_ci(sens_prim_or$OR, sens_prim_or$OR_lo, sens_prim_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_prim_or$P_OR_lt_1)`) and the secondary estimate likewise
+(k = 7; OR `r fmt_ci(sens_sec_or$OR, sens_sec_or$OR_lo, sens_sec_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_sec_or$P_OR_lt_1)`). Conclusions are robust to this
+approximation.
+:::
+::: {.it}
+**Confronto secondario con sole stime aggiustate.** Limitando il confronto contro nessun
+antibiotico ai tre studi con stime aggiustate multivariabili (Delaney 2007, Dial 2008,
+Brown 2016) si ottiene OR
+`r fmt_ci(sens_sec_adj$OR, sens_sec_adj$OR_lo, sens_sec_adj$OR_hi)` (k = 3),
+P(OR<1) = `r sprintf("%.2f", sens_sec_adj$P_OR_lt_1)` — coerente con l'intero set
+secondario, con un intervallo più ampio che riflette la base di evidenze ridotta.
+
+**Esclusione delle conversioni da misure di tasso/rischio.** Le stime curate di
+Doernberg 2012 (HR aggiustato), Dial 2008 (RR aggiustato) e Brown 2016 (IRR aggiustato)
+entrano nell'analisi come OR tramite un'approssimazione per esiti rari. Escludendole, la
+stima primaria resta sostanzialmente invariata (k = 10; OR
+`r fmt_ci(sens_prim_or$OR, sens_prim_or$OR_lo, sens_prim_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_prim_or$P_OR_lt_1)`), così come quella secondaria (k = 7; OR
+`r fmt_ci(sens_sec_or$OR, sens_sec_or$OR_lo, sens_sec_or$OR_hi)`, P(OR<1) =
+`r sprintf("%.2f", sens_sec_or$P_OR_lt_1)`). Le conclusioni sono robuste rispetto a
+questa approssimazione.
+:::
+
+## [Secondary comparison: vs no antibiotic (9 studies)]{.en}[Confronto secondario: vs nessun antibiotico (9 studi)]{.it}
+
+::: {.en}
+Against a *no-antibiotic* comparator the association is essentially null
+(**OR `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`**, P(OR<1) = `r sprintf("%.2f", sec$P_OR_lt_1)`).
+This is expected — almost any antibiotic raises CDI risk relative to no antibiotic — and it
+explains why pooling these studies into the primary set attenuated the protective signal.
+The two comparator questions are distinct and should not be combined.
+:::
+::: {.it}
+Rispetto a un comparatore *senza antibiotico* l'associazione è sostanzialmente nulla
+(**OR `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`**, P(OR<1) = `r sprintf("%.2f", sec$P_OR_lt_1)`).
+È un risultato atteso — quasi ogni antibiotico aumenta il rischio di ICD rispetto a nessun
+antibiotico — e spiega perché aggregare questi studi nel set primario attenuava il segnale
+protettivo. Le due domande sul comparatore sono distinte e non vanno combinate.
+:::
+
+## [Subgroups]{.en}[Sottogruppi]{.it}
+
+::: {.en}
+Within the primary set, the doxycycline-restricted subgroup and cohort studies lean
+protective, whereas case-control studies do not — a design-related divergence that warrants
+cautious interpretation.
+:::
+::: {.it}
+All'interno del set primario, il sottogruppo limitato alla doxiciclina e gli studi di
+coorte tendono alla protezione, mentre gli studi caso-controllo no: una divergenza legata
+al disegno da interpretare con cautela.
+:::
+
+::: {.en}
+```{r tbl-sub-en}
+res_sub |>
+  transmute(Analysis = recode(analysis, doxycycline = "Doxycycline only",
+              case_control = "Case-control designs", cohort = "Cohort designs"),
+            `Studies (k)` = k, `OR (95% CrI)` = fmt_ci(OR, OR_lo, OR_hi),
+            `P(OR<1)` = sprintf("%.2f", P_OR_lt_1)) |>
+  kable(align = "lccc")
+```
+:::
+::: {.it}
+```{r tbl-sub-it}
+res_sub |>
+  transmute(Analisi = recode(analysis, doxycycline = "Solo doxiciclina",
+              case_control = "Disegni caso-controllo", cohort = "Disegni di coorte"),
+            `Studi (k)` = k, `OR (ICr 95%)` = fmt_ci(OR, OR_lo, OR_hi),
+            `P(OR<1)` = sprintf("%.2f", P_OR_lt_1)) |>
+  kable(align = "lccc")
+```
+:::
+
+## [Care-context meta-regression]{.en}[Meta-regressione per contesto assistenziale]{.it}
+
+::: {.en}
+A pre-specified Bayesian meta-regression (exact, `bmr`) on the **primary antibiotic-comparator
+set (k = 11)** estimates a separate pooled OR per care context (CA 3, HA 4, mixed 4). The
+protective association is concentrated in **hospital-acquired (inpatient) settings**
+(OR `r fmt_ci(ctx$OR[2], ctx$OR_lo[2], ctx$OR_hi[2])`,
+P(OR<1) = `r sprintf("%.2f", ctx$P_OR_lt_1[2])`), while community-acquired and mixed settings
+straddle 1. This mirrors Tariq (2018), whose setting subgroup found protection in inpatients
+(OR 0.55) but not mixed populations (OR 0.92). As a **sensitivity analysis on the full primary
+set (k = 20; CA 6, HA 9, mixed 5)**, the hospital-acquired estimate attenuates to OR `r ha20`
+(P(OR<1) = `r ha20_p`), because that set adds no-antibiotic-comparator studies that dilute the
+setting contrast. Per-group counts are small, so this is exploratory; residual heterogeneity
+remains (τ = `r mr_tau`).
+:::
+::: {.it}
+Una meta-regressione bayesiana pre-specificata (esatta, `bmr`) sul **set primario con
+comparatore antibiotico (k = 11)** stima un OR aggregato per ciascun contesto (CA 3, HA 4,
+misto 4). L'associazione protettiva si concentra nei **contesti ospedalieri (pazienti
+ricoverati)** (OR `r fmt_ci(ctx$OR[2], ctx$OR_lo[2], ctx$OR_hi[2])`,
+P(OR<1) = `r sprintf("%.2f", ctx$P_OR_lt_1[2])`), mentre i contesti comunitari e misti
+attraversano 1. Ciò rispecchia Tariq (2018), la cui analisi per contesto trovava protezione
+nei ricoverati (OR 0,55) ma non nelle popolazioni miste (OR 0,92). Come **analisi di
+sensibilità sul set primario completo (k = 20; CA 6, HA 9, misto 5)**, la stima ospedaliera si
+attenua a OR `r ha20` (P(OR<1) = `r ha20_p`), perché quel set aggiunge studi con comparatore
+"nessun antibiotico" che diluiscono il contrasto. Le numerosità per gruppo sono piccole,
+quindi è esplorativo; l'eterogeneità residua permane (τ = `r mr_tau`).
+:::
+
+```{r fig-metareg, fig.width=7.5, fig.height=3.4}
+bind_rows(ctx |> mutate(set = "Primary (k=11)"),
+          ctx20 |> mutate(set = "Sensitivity (k=20)")) |>
+  mutate(care_context = factor(care_context, levels = c("mixed","HA","CA")),
+         set = factor(set, levels = c("Primary (k=11)","Sensitivity (k=20)"))) |>
+  ggplot(aes(OR, care_context, colour = set)) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi),
+                  position = position_dodge(width = 0.5), size = 0.45) +
+  scale_colour_manual(values = c("Primary (k=11)" = jama_blue,
+                                 "Sensitivity (k=20)" = jama_gray)) +
+  scale_x_log10(breaks = c(0.3, 0.5, 0.8, 1, 1.5, 2)) +
+  labs(x = "Odds ratio (log scale)", y = "Care context") +
+  theme_jama()
+```
+
+::: {.cap}
+::: {.en}
+**Figure 6.** Care-context pooled ORs from the Bayesian meta-regression: primary antibiotic-comparator set (k = 11, blue) with full-set sensitivity (k = 20, gray).
+:::
+::: {.it}
+**Figura 6.** OR aggregati per contesto dalla meta-regressione bayesiana: set primario con comparatore antibiotico (k = 11, blu) e sensibilità sul set completo (k = 20, grigio).
+:::
+:::
+
+## [Comparison with Tariq (2018)]{.en}[Confronto con Tariq (2018)]{.it}
+
+::: {.en}
+**Can our Bayesian approach reproduce Tariq?** Yes. Applied to Tariq's exact six studies,
+a DerSimonian-Laird model reproduces their result exactly (`r v_tariq_dl`, I² = 53%), and
+our Bayesian model gives a near-identical point estimate (`r v_tariq_bay`,
+P(OR<1) = `r v_tariq_p`). The Bayesian credible interval is wider than Tariq's confidence
+interval because it propagates the uncertainty in τ that is unavoidable with only six
+studies — the divergence is one of honest uncertainty, not of the point estimate.
+
+**Why does the updated review not find clear protection?** Chiefly the **additional
+studies**. Adding the eight newer antibiotic-comparator studies to Tariq's six moves the
+pooled OR from ~0.63 to `r v_bridge` (P(OR<1) = `r v_bridge_p`) and roughly doubles
+heterogeneity — and this bridge lands essentially on our primary estimate. The new evidence
+is dominated by very large administrative cohorts (e.g. Carmichael, Miller, Watson, Webb,
+Boven) whose estimates sit close to the null and carry substantial weight. Secondary
+contributors to the difference are (i) the **method** (Bayesian vs DL), which mainly widens
+intervals rather than shifting the centre; and (ii) **comparator and estimate decisions** —
+our protocol separates "vs other antibiotics" from "vs no antibiotic", so three of Tariq's
+six studies (Delaney, Dial, Tartof) move to the secondary set, and Tartof's estimate
+differs (Tariq's adjusted OR 0.50 vs our unadjusted 0.84).
+:::
+::: {.it}
+**Il nostro approccio bayesiano riproduce Tariq?** Sì. Applicato ai sei studi esatti di
+Tariq, un modello DerSimonian-Laird ne riproduce esattamente il risultato (`r v_tariq_dl`,
+I² = 53%), e il nostro modello bayesiano fornisce una stima puntuale quasi identica
+(`r v_tariq_bay`, P(OR<1) = `r v_tariq_p`). L'intervallo di credibilità bayesiano è più
+ampio dell'intervallo di confidenza di Tariq perché propaga l'incertezza su τ, inevitabile
+con soli sei studi: la differenza riguarda l'incertezza, non la stima puntuale.
+
+**Perché la revisione aggiornata non trova una protezione netta?** Soprattutto per gli
+**studi aggiuntivi**. Aggiungendo gli otto nuovi studi con comparatore antibiotico ai sei
+di Tariq, l'OR aggregato passa da ~0,63 a `r v_bridge` (P(OR<1) = `r v_bridge_p`) e
+l'eterogeneità circa raddoppia — e questo "ponte" coincide sostanzialmente con la nostra
+stima primaria. Le nuove evidenze sono dominate da coorti amministrative molto grandi (es.
+Carmichael, Miller, Watson, Webb, Boven), con stime vicine al valore nullo e peso
+sostanziale. Contribuiscono in via secondaria (i) il **metodo** (bayesiano vs DL), che
+allarga gli intervalli più che spostare il centro; e (ii) le **decisioni su comparatore e
+stime** — il protocollo separa "vs altri antibiotici" da "vs nessun antibiotico", per cui
+tre dei sei studi di Tariq (Delaney, Dial, Tartof) passano al set secondario, e la stima di
+Tartof differisce (OR aggiustato 0,50 di Tariq vs 0,84 non aggiustato nostro).
+:::
+
+```{r fig-tariq, fig.width=8, fig.height=3.2}
+comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
+  ggplot(aes(OR, analysis)) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_navy, size = 0.5) +
+  geom_text(aes(label = sprintf("%.2f (%.2f-%.2f)", OR, OR_lo, OR_hi)),
+            vjust = -1, size = 3.2, colour = "#1A1A1A") +
+  scale_x_log10(breaks = c(0.4, 0.5, 0.6, 0.8, 1, 1.2)) +
+  labs(x = "Pooled OR (log scale)", y = NULL) +
+  theme_jama()
+```
+
+::: {.cap}
+::: {.en}
+**Figure 7.** From Tariq to the updated review: recapitulation and stepwise decomposition of the difference.
+:::
+::: {.it}
+**Figura 7.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
+:::
+:::
+
+## [Certainty of evidence (GRADE)]{.en}[Certezza delle evidenze (GRADE)]{.it}
+
+::: {.en}
+Certainty was rated following the GRADE approach [@Guyatt2008GRADE]. Because all evidence
+is observational, both comparisons start at *low* certainty; each was rated down for
+serious inconsistency and serious imprecision, yielding **very low** certainty for both
+questions.
+:::
+
+::: {.en}
+| Outcome: incident CDI | k | Pooled OR (95% CrI) | Illustrative absolute effect* | Risk of bias | Inconsistency | Indirectness | Imprecision | Publication bias | Certainty |
+|---|---|---|---|---|---|---|---|---|---|
+| Tetracyclines vs other antibiotics | 11 | `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)` | `r abs_prim` | Not seriousᵃ | Seriousᵇ | Not serious | Seriousᶜ | Undetectedᵈ | **Very low** |
+| Tetracyclines vs no antibiotic | 9 | `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)` | `r abs_sec` | Not seriousᵃ | Seriousᵇ | Seriousᵉ | Seriousᶜ | Undetectedᵈ | **Very low** |
+
+\* Illustrative only: assumes a baseline risk of 20 per 1,000 antibiotic-exposed patients
+(hospital context) and 5 per 1,000 unexposed patients; absolute effects scale with the
+baseline risk. ᵃ All 11 primary and 8 of 9 secondary studies at low risk of bias on the
+Newcastle-Ottawa Scale (provisional, single-reviewer assessment). ᵇ Substantial
+heterogeneity: primary I² = `r i2_txt`; the predictive interval spans protection to harm.
+ᶜ Credible interval includes both meaningful benefit and harm. ᵈ No funnel-plot asymmetry
+(Egger's test p = `r sprintf("%.2f", egg$pval)`), though power to detect it is limited.
+ᵉ The no-antibiotic comparator answers a different question and is highly prone to
+confounding by indication.
+:::
+
+::: {.it}
+La certezza è stata valutata secondo l'approccio GRADE [@Guyatt2008GRADE]. Poiché tutte
+le evidenze sono osservazionali, entrambi i confronti partono da una certezza *bassa*;
+ciascuno è stato declassato per inconsistenza e imprecisione serie, risultando in una
+certezza **molto bassa** per entrambe le domande.
+:::
+
+::: {.it}
+| Esito: ICD incidente | k | OR aggregato (ICr 95%) | Effetto assoluto illustrativo* | Rischio di bias | Inconsistenza | Indirettezza | Imprecisione | Bias di pubblicazione | Certezza |
+|---|---|---|---|---|---|---|---|---|---|
+| Tetracicline vs altri antibiotici | 11 | `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)` | `r abs_prim` | Non serioᵃ | Serioᵇ | Non serio | Serioᶜ | Non rilevatoᵈ | **Molto bassa** |
+| Tetracicline vs nessun antibiotico | 9 | `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)` | `r abs_sec` | Non serioᵃ | Serioᵇ | Serioᵉ | Serioᶜ | Non rilevatoᵈ | **Molto bassa** |
+
+\* Solo illustrativo: assume un rischio di base di 20 per 1.000 pazienti esposti ad
+antibiotici (contesto ospedaliero) e di 5 per 1.000 non esposti; gli effetti assoluti
+variano con il rischio di base. ᵃ Tutti gli 11 studi primari e 8 dei 9 secondari a basso
+rischio di bias secondo la scala Newcastle-Ottawa (valutazione provvisoria, singolo
+revisore). ᵇ Eterogeneità sostanziale: I² primario = `r i2_txt`; l'intervallo predittivo
+spazia dalla protezione al danno. ᶜ L'intervallo di credibilità include sia un beneficio
+sia un danno rilevanti. ᵈ Nessuna asimmetria del funnel plot (test di Egger p =
+`r sprintf("%.2f", egg$pval)`), sebbene la potenza per rilevarla sia limitata. ᵉ Il
+comparatore senza antibiotico risponde a una domanda diversa ed è fortemente soggetto a
+confondimento per indicazione.
+:::
+
+## [Interpretation]{.en}[Interpretazione]{.it}
+
+::: {.en}
+Restricted to the protocol's intended comparator (another antibiotic), the data provide
+**suggestive but uncertain** evidence that tetracycline exposure lowers CDI risk: the
+pooled OR is below 1 with a modest posterior probability of a meaningful reduction, but the
+credible interval still includes no effect and heterogeneity is substantial. A confidently
+protective conclusion emerges only under a strong literature-based prior. These findings
+distinguish a plausibly *lower associated risk* from established *protective therapy*.
+:::
+::: {.it}
+Limitandosi al comparatore previsto dal protocollo (un altro antibiotico), i dati
+forniscono un'evidenza **suggestiva ma incerta** che l'esposizione alle tetracicline
+riduca il rischio di ICD: l'OR aggregato è inferiore a 1 con una modesta probabilità a
+posteriori di una riduzione rilevante, ma l'intervallo di credibilità include ancora
+l'assenza di effetto e l'eterogeneità è sostanziale. Una conclusione decisamente protettiva
+emerge solo con un forte prior basato sulla letteratura. Questi risultati distinguono un
+plausibile *minor rischio associato* da una *terapia protettiva* consolidata.
+:::
+
+## [Discussion]{.en}[Discussione]{.it}
+
+::: {.en}
+**What these results mean.** Restricted to the protocol comparator (another antibiotic), the
+pooled odds ratio is `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`, with roughly a
+`r sprintf("%.0f", 100*P$P_OR_lt_1)`% posterior probability of *any* protection but only
+`r sprintf("%.0f", 100*P$P_OR_lt_080)`% for a clinically meaningful effect (OR < 0.80). The
+dominant feature is heterogeneity (τ = `r sprintf("%.2f", P$tau)`): the predictive interval
+for a new study spans OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`, so a
+well-conducted future study could plausibly land anywhere from meaningful protection to
+modest harm. Against a *no-antibiotic* comparator the association is essentially null
+(`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), and a confidently protective reading emerges only
+under a prior anchored on the older Tariq (2018) estimate — that is, it is driven by prior
+belief, not the new data. The doxycycline-restricted sensitivity analysis is the most
+encouraging signal (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`, P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)`),
+but its interval still touches 1.
+
+**Is tetracycline preferable to macrolides or other agents to reduce CDI?** Not on this
+evidence. First, no included study provides a head-to-head tetracycline-versus-macrolide
+comparison; the comparator is a heterogeneous mix of "other antibiotics", so a
+macrolide-specific preference would be an extrapolation. Second, the pooled effect is
+uncertain (credible interval crossing 1, substantial heterogeneity). Third, the protective
+interpretation is fragile, depending on prior belief. The defensible statement is narrower:
+tetracyclines — particularly doxycycline — are biologically plausible lower-CDI-risk agents
+and are unlikely to be worse than typical comparators, with a *possible* modest advantage.
+That can reasonably inform stewardship *when the spectrum required is genuinely equivalent*,
+but it does not meet the bar for a formal recommendation to prefer them, and certainly not
+specifically over macrolides.
+
+**Implications for future studies.**
+
+- Use active-comparator, new-user cohort designs (or target-trial emulation) with an
+  explicit, clinically matched comparator — e.g. doxycycline vs a macrolide for
+  community-acquired pneumonia — rather than pooling against undifferentiated "other antibiotics".
+- Reduce confounding by indication: adjust for or match on prior CDI, PPI use, hospitalisation,
+  age and comorbidity; treat case-control evidence cautiously given its design-related divergence.
+- Standardise CDI ascertainment (testing protocols, exposure and outcome windows) so
+  heterogeneity reflects biology rather than measurement.
+- Analyse by agent (doxycycline vs minocycline vs tigecycline) to isolate the doxycycline signal.
+- Pre-register and report completely to limit publication bias, and consider
+  individual-participant-data meta-analysis to resolve the heterogeneity the predictive interval exposes.
+- Where clinically and ethically appropriate, a pragmatic randomised trial with CDI as a
+  pre-specified secondary outcome would provide the confirmatory evidence observational data cannot.
+:::
+::: {.it}
+**Cosa significano questi risultati.** Limitandosi al comparatore del protocollo (un altro
+antibiotico), l'odds ratio aggregato è `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`, con circa il
+`r sprintf("%.0f", 100*P$P_OR_lt_1)`% di probabilità a posteriori di un *qualsiasi* effetto
+protettivo ma solo il `r sprintf("%.0f", 100*P$P_OR_lt_080)`% per un effetto clinicamente
+rilevante (OR < 0,80). L'elemento dominante è l'eterogeneità (τ = `r sprintf("%.2f", P$tau)`):
+l'intervallo predittivo per un nuovo studio va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`,
+quindi uno studio futuro ben condotto potrebbe collocarsi ovunque, da una protezione rilevante
+a un modesto danno. Rispetto a un comparatore *senza antibiotico* l'associazione è
+sostanzialmente nulla (`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), e una lettura decisamente
+protettiva emerge solo con un prior ancorato alla stima precedente di Tariq (2018) — cioè è
+guidata dalla convinzione a priori, non dai nuovi dati. L'analisi di sensibilità limitata alla
+doxiciclina è il segnale più incoraggiante (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`,
+P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)`), ma il suo intervallo tocca ancora 1.
+
+**Le tetracicline sono preferibili ai macrolidi o ad altri agenti per ridurre l'ICD?** Non
+sulla base di queste evidenze. Primo, nessuno studio incluso fornisce un confronto diretto
+tetraciclina-vs-macrolide; il comparatore è un insieme eterogeneo di "altri antibiotici",
+perciò una preferenza specifica sui macrolidi sarebbe un'estrapolazione. Secondo, l'effetto
+aggregato è incerto (intervallo di credibilità che attraversa 1, eterogeneità sostanziale).
+Terzo, l'interpretazione protettiva è fragile e dipende dalla convinzione a priori.
+L'affermazione difendibile è più circoscritta: le tetracicline — in particolare la
+doxiciclina — sono agenti biologicamente plausibili a minor rischio di ICD ed è improbabile
+che siano peggiori dei comparatori abituali, con un *possibile* modesto vantaggio. Ciò può
+ragionevolmente orientare la stewardship *quando lo spettro richiesto è realmente
+equivalente*, ma non raggiunge la soglia per una raccomandazione formale a preferirle, e
+certamente non specificamente rispetto ai macrolidi.
+
+**Implicazioni per gli studi futuri.**
+
+- Usare disegni di coorte active-comparator, new-user (o emulazione di target trial) con un
+  comparatore esplicito e clinicamente confrontabile — es. doxiciclina vs un macrolide nella
+  polmonite acquisita in comunità — invece di aggregare contro "altri antibiotici" indistinti.
+- Ridurre il confondimento da indicazione: aggiustare o appaiare per ICD pregressa, uso di
+  IPP, ospedalizzazione, età e comorbidità; trattare con cautela le evidenze caso-controllo
+  data la divergenza legata al disegno.
+- Standardizzare l'accertamento dell'ICD (protocolli di test, finestre di esposizione ed
+  esito) affinché l'eterogeneità rifletta la biologia e non la misurazione.
+- Analizzare per agente (doxiciclina vs minociclina vs tigeciclina) per isolare il segnale
+  della doxiciclina.
+- Pre-registrare e riportare in modo completo per limitare il publication bias, e valutare
+  una meta-analisi su dati individuali dei partecipanti per risolvere l'eterogeneità che
+  l'intervallo predittivo evidenzia.
+- Ove clinicamente ed eticamente appropriato, uno studio randomizzato pragmatico con l'ICD
+  come esito secondario pre-specificato fornirebbe la conferma che i dati osservazionali non
+  possono dare.
+:::
+
+::: {.callout-warning}
+::: {.en}
+**Caveats.** All included studies are observational; Newcastle-Ottawa scores are
+predominantly in the low-risk range, but the assessment is provisional pending duplicate
+full-text review. Estimates convert RR/HR to OR under a rare-outcome approximation. This
+is evidence synthesis for research and education, not treatment guidance for individual
+patients.
+:::
+::: {.it}
+**Avvertenze.** Tutti gli studi inclusi sono osservazionali; i punteggi Newcastle-Ottawa
+sono prevalentemente nell'intervallo di basso rischio, ma la valutazione è provvisoria in
+attesa della doppia revisione del full-text. Le stime convertono RR/HR in OR con
+un'approssimazione per esiti rari. Si tratta di una sintesi delle evidenze a scopo di
+ricerca ed educativo, non di una guida terapeutica per il singolo paziente.
+:::
+:::
+
+## [References]{.en}[Bibliografia]{.it}
+
+::: {.en}
+Bibliographic entries for the studies in the synthesis are cited in Table 1 and listed below.
+Author and year are taken from the extraction; titles, journals and DOIs in `references.bib`
+are a scaffold to be verified/completed by the author (Tariq 2018 and a few studies whose DOIs
+came from the source files are complete).
+:::
+::: {.it}
+Le voci bibliografiche degli studi nella sintesi sono citate nella Tabella 1 ed elencate qui
+sotto. Autore e anno provengono dall'estrazione; titoli, riviste e DOI in `references.bib` sono
+uno scheletro da verificare/completare (Tariq 2018 e alcuni studi con DOI dai file sorgente
+sono completi).
+:::
+
+::: {#refs}
+:::
+
+---
+
+::: {.cap}
+::: {.en}
+Reproducible source: `report.qmd`. Bayesian normal-normal hierarchical model (`bayesmeta`, exact numerical posterior), confirmed by `brms`/Stan MCMC. Re-render with `quarto render report.qmd`.
+:::
+::: {.it}
+Sorgente riproducibile: `report.qmd`. Modello gerarchico normale-normale bayesiano (`bayesmeta`, posteriori numerica esatta), confermato con MCMC `brms`/Stan. Ri-generare con `quarto render report.qmd`.
+:::
+:::
+
