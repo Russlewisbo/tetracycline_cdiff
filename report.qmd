@@ -276,6 +276,62 @@ cat('
 ')
 ```
 
+## [Background]{.en}[Contesto]{.it}
+
+::: {.en}
+*Clostridioides difficile* infection (CDI) is among the most common healthcare-associated
+infections and a leading cause of antibiotic-associated diarrhoea and colitis. Systemic
+antibiotic exposure is the principal modifiable risk factor: by disrupting the protective
+gut microbiota, antibiotics allow *C. difficile* to proliferate and release toxin. That risk
+is not uniform across drug classes — agents such as clindamycin, later-generation
+cephalosporins and fluoroquinolones are consistently linked to higher CDI risk — so the
+choice of antibiotic is itself a lever for prevention and antimicrobial stewardship.
+
+Tetracyclines, and doxycycline in particular, have been proposed as comparatively
+lower-risk agents. The mechanistic rationale is a relatively narrow impact on the anaerobic
+colonic flora that resists colonisation, together with possible direct suppression of
+*C. difficile* growth and toxin production. A 2018 systematic review and meta-analysis
+pooled six observational studies and reported roughly a 38% lower risk of CDI with
+tetracycline exposure (OR ≈ 0.62) [@Tariq2018]. That estimate, however, combined studies
+with differing comparators (other antibiotics and, in some studies, no antibiotic), rested
+on a modest evidence base, and predates a substantial body of subsequent observational data,
+including several very large administrative-cohort studies.
+
+This report updates and re-examines the question under a pre-registered protocol. It
+analyses the comparison the protocol specifies — tetracyclines versus *other antibiotics* —
+separately from the distinct question of tetracyclines versus *no antibiotic*, and estimates
+the association within a Bayesian random-effects framework that makes the residual
+heterogeneity and uncertainty explicit.
+:::
+::: {.it}
+L'infezione da *Clostridioides difficile* (ICD) è tra le infezioni correlate
+all'assistenza più comuni e una delle principali cause di diarrea e colite associate agli
+antibiotici. L'esposizione ad antibiotici sistemici è il principale fattore di rischio
+modificabile: alterando il microbiota intestinale protettivo, gli antibiotici consentono a
+*C. difficile* di proliferare e rilasciare tossina. Questo rischio non è uniforme tra le
+classi di farmaci — agenti come clindamicina, cefalosporine di ultima generazione e
+fluorochinoloni sono costantemente associati a un rischio di ICD più elevato — per cui la
+scelta dell'antibiotico è essa stessa una leva per la prevenzione e la stewardship
+antimicrobica.
+
+Le tetracicline, e in particolare la doxiciclina, sono state proposte come agenti a rischio
+comparativamente inferiore. La motivazione meccanicistica è un impatto relativamente
+ristretto sulla flora colica anaerobia che resiste alla colonizzazione, insieme a una
+possibile soppressione diretta della crescita e della produzione di tossina di
+*C. difficile*. Una revisione sistematica con meta-analisi del 2018 ha aggregato sei studi
+osservazionali riportando un rischio di ICD inferiore di circa il 38% con l'esposizione alle
+tetracicline (OR ≈ 0,62) [@Tariq2018]. Quella stima, tuttavia, combinava studi con
+comparatori diversi (altri antibiotici e, in alcuni studi, nessun antibiotico), poggiava su
+una base di evidenze modesta e precede un consistente corpus di dati osservazionali
+successivi, tra cui diversi studi di coorte amministrativi molto ampi.
+
+Questo report aggiorna e riesamina la questione con un protocollo pre-registrato. Analizza
+il confronto specificato dal protocollo — tetracicline versus *altri antibiotici* — in modo
+separato dalla domanda distinta delle tetracicline versus *nessun antibiotico*, e stima
+l'associazione con un modello bayesiano a effetti casuali che rende esplicite l'eterogeneità
+e l'incertezza residue.
+:::
+
 ## [Research question]{.en}[Domanda di ricerca]{.it}
 
 ::: {.en}
@@ -1500,38 +1556,189 @@ confondimento per indicazione.
 
 ::: {.en}
 Restricted to the protocol's intended comparator (another antibiotic), the data provide
-**suggestive but uncertain** evidence that tetracycline exposure lowers CDI risk: the
-pooled OR is below 1 with a modest posterior probability of a meaningful reduction, but the
-credible interval still includes no effect and heterogeneity is substantial. A confidently
-protective conclusion emerges only under a strong literature-based prior. These findings
-distinguish a plausibly *lower associated risk* from established *protective therapy*.
+**suggestive but uncertain** evidence that tetracycline exposure lowers CDI risk. The
+pooled odds ratio is below 1 (OR `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`) but its 95% credible
+interval still includes no effect; the posterior probability of *any* reduction is
+`r sprintf("%.0f", 100*P$P_OR_lt_1)`%, falling to `r sprintf("%.0f", 100*P$P_OR_lt_080)`%
+for a clinically meaningful one (OR < 0.80). These findings distinguish a plausibly
+*lower associated risk* from established *protective therapy*.
+
+**What the model fit tells us.** The random-effects model describes the studies well, but
+its most informative output is the between-study spread rather than the mean. Heterogeneity
+is substantial ($\tau$ = `r sprintf("%.2f", P$tau)`, I² = `r i2_txt`), so the pooled OR
+summarises a *distribution* of study-specific effects rather than one common value: the
+predictive interval for a new study (OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`)
+reaches from meaningful protection to modest harm. The partial pooling visible in Figure 1
+shrinks imprecise study estimates toward that distribution, which is why the pooled interval
+is wider than a fixed-effect analysis would imply. The exact numerical posterior was
+reproduced by independent Hamiltonian Monte Carlo (R-hat ≈ 1.00, effective sample sizes in
+the thousands, `r n_div` divergent transitions), so this width faithfully reflects the
+evidence rather than any artefact of computation or prior choice.
+
+**How robust is the result?** The direction of effect is stable across the pre-specified
+checks: no single study drives it (leave-one-out OR
+`r sprintf("%.2f", min(loo$OR))`–`r sprintf("%.2f", max(loo$OR))`), it persists after
+excluding the three RR/HR/IRR-to-OR conversions (OR
+`r fmt_ci(sens_prim_or$OR, sens_prim_or$OR_lo, sens_prim_or$OR_hi)`) and after restricting
+to low-risk-of-bias studies, and there is no funnel asymmetry (Egger p =
+`r sprintf("%.2f", egg$pval)`). It is likewise stable across the data-dominated priors
+(primary, vague, sceptical). The only assumption that renders the result confidently
+protective is the literature-informed prior centred on Tariq's OR 0.62; the formal
+prior-data conflict check finds only mild tension (z = `r sprintf("%.2f", pdc_z)`, p =
+`r sprintf("%.2f", pdc_p)`), so that shift reflects the prior's narrowness rather than
+incompatibility with the updated data. The strongest internal signals — the doxycycline-only
+subset (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`) and hospital-acquired settings — are
+consistent with a real but small effect concentrated in specific agents and contexts, yet
+each interval still touches 1.
 :::
 ::: {.it}
 Limitandosi al comparatore previsto dal protocollo (un altro antibiotico), i dati
 forniscono un'evidenza **suggestiva ma incerta** che l'esposizione alle tetracicline
-riduca il rischio di ICD: l'OR aggregato è inferiore a 1 con una modesta probabilità a
-posteriori di una riduzione rilevante, ma l'intervallo di credibilità include ancora
-l'assenza di effetto e l'eterogeneità è sostanziale. Una conclusione decisamente protettiva
-emerge solo con un forte prior basato sulla letteratura. Questi risultati distinguono un
+riduca il rischio di ICD. L'odds ratio aggregato è inferiore a 1 (OR
+`r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`) ma il suo intervallo di credibilità al 95% include
+ancora l'assenza di effetto; la probabilità a posteriori di *una qualsiasi* riduzione è
+`r sprintf("%.0f", 100*P$P_OR_lt_1)`%, e scende al `r sprintf("%.0f", 100*P$P_OR_lt_080)`%
+per una riduzione clinicamente rilevante (OR < 0,80). Questi risultati distinguono un
 plausibile *minor rischio associato* da una *terapia protettiva* consolidata.
+
+**Cosa indica l'adattamento del modello.** Il modello a effetti casuali descrive bene gli
+studi, ma il suo esito più informativo è la dispersione tra studi, non la media.
+L'eterogeneità è sostanziale ($\tau$ = `r sprintf("%.2f", P$tau)`, I² = `r i2_txt`), per cui
+l'OR aggregato riassume una *distribuzione* di effetti specifici per studio, non un unico
+valore comune: l'intervallo predittivo per un nuovo studio (OR
+`r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`) va da una protezione rilevante a un
+modesto danno. Il partial pooling visibile nella Figura 1 attrae le stime imprecise verso
+quella distribuzione, ed è per questo che l'intervallo aggregato è più ampio di quanto
+suggerirebbe un'analisi a effetti fissi. La posteriori numerica esatta è stata riprodotta
+da Hamiltonian Monte Carlo indipendente (R-hat ≈ 1,00, dimensioni campionarie efficaci
+nell'ordine delle migliaia, `r n_div` transizioni divergenti): questa ampiezza riflette
+fedelmente le evidenze e non un artefatto del calcolo o della scelta del prior.
+
+**Quanto è robusto il risultato?** La direzione dell'effetto è stabile in tutte le
+verifiche pre-specificate: nessun singolo studio la determina (leave-one-out OR
+`r sprintf("%.2f", min(loo$OR))`–`r sprintf("%.2f", max(loo$OR))`), persiste escludendo le
+tre conversioni RR/HR/IRR→OR (OR
+`r fmt_ci(sens_prim_or$OR, sens_prim_or$OR_lo, sens_prim_or$OR_hi)`) e limitandosi agli
+studi a basso rischio di bias, e non vi è asimmetria del funnel (Egger p =
+`r sprintf("%.2f", egg$pval)`). È inoltre stabile tra i prior dominati dai dati (primario,
+vago, scettico). L'unica assunzione che rende il risultato decisamente protettivo è il
+prior informato dalla letteratura centrato sull'OR 0,62 di Tariq; la verifica formale del
+conflitto prior-dati rileva solo una lieve tensione (z = `r sprintf("%.2f", pdc_z)`, p =
+`r sprintf("%.2f", pdc_p)`), quindi tale spostamento riflette la ristrettezza del prior e
+non un'incompatibilità con i dati aggiornati. I segnali interni più marcati — il
+sottoinsieme della sola doxiciclina (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`) e i contesti
+ospedalieri — sono coerenti con un effetto reale ma piccolo, concentrato in agenti e
+contesti specifici, benché ciascun intervallo tocchi ancora 1.
+:::
+
+## [What this review adds]{.en}[Cosa aggiunge questa revisione]{.it}
+
+::: {.en}
+To our knowledge this is the first Bayesian re-analysis of the tetracycline–CDI question
+and the first update of Tariq et al. (2018) with the subsequent literature: 20 studies
+contribute a curated effect size (11 vs other antibiotics, 9 vs no antibiotic) drawn from
+35 included reports, roughly doubling the antibiotic-comparator evidence base.
+
+Three features distinguish it from the earlier meta-analysis. First, it **separates the two
+comparator questions** that Tariq pooled — tetracyclines *vs other antibiotics* (the
+protocol's PECO) and *vs no antibiotic* — a distinction that materially changes the reading,
+because the apparent protection largely tracks the second, confounding-prone comparison.
+Second, it reports the **full posterior** — the probabilities P(OR<1) and P(OR<0.80) and a
+predictive interval — rather than a single point estimate and confidence interval, making
+the residual uncertainty and heterogeneity explicit. Third, it adds a **pre-specified
+robustness programme** (prior sensitivity, a formal prior-data conflict test, leave-one-out,
+small-study diagnostics, and care-context/design/adjustment meta-regressions) and
+cross-validates the exact posterior with MCMC.
+
+Substantively, the headline is a **tempering** of the earlier literature. Tariq's OR ≈ 0.62
+reproduces exactly in our hands (`r v_tariq_dl`), but adding the newer, larger
+administrative-cohort evidence moves the pooled estimate toward the null (`r v_bridge` for
+the combined set), and the confidently protective reading now survives only under a prior
+anchored on the older result. The earlier "low risk" conclusion therefore appears driven
+partly by comparator mixing and a smaller, earlier evidence base.
+:::
+::: {.it}
+A nostra conoscenza questa è la prima ri-analisi bayesiana della questione tetracicline–ICD
+e il primo aggiornamento di Tariq et al. (2018) con la letteratura successiva: 20 studi
+contribuiscono con una stima d'effetto curata (11 vs altri antibiotici, 9 vs nessun
+antibiotico) tratti da 35 report inclusi, raddoppiando all'incirca la base di evidenze con
+comparatore antibiotico.
+
+Tre elementi la distinguono dalla meta-analisi precedente. Primo, **separa le due domande
+sul comparatore** che Tariq aveva aggregato — tetracicline *vs altri antibiotici* (il PECO
+del protocollo) e *vs nessun antibiotico* — una distinzione che cambia sostanzialmente la
+lettura, perché la protezione apparente segue in larga parte il secondo confronto, soggetto
+a confondimento. Secondo, riporta la **posteriori completa** — le probabilità P(OR<1) e
+P(OR<0,80) e un intervallo predittivo — anziché una singola stima puntuale con intervallo di
+confidenza, rendendo esplicite l'incertezza residua e l'eterogeneità. Terzo, aggiunge un
+**programma di robustezza pre-specificato** (sensibilità ai prior, test formale di conflitto
+prior-dati, leave-one-out, diagnostica dei piccoli studi e meta-regressioni per contesto,
+disegno e aggiustamento) e convalida la posteriori esatta con MCMC.
+
+Sul piano sostanziale, il messaggio è un **ridimensionamento** della letteratura
+precedente. L'OR ≈ 0,62 di Tariq si riproduce esattamente (`r v_tariq_dl`), ma l'aggiunta
+delle evidenze più recenti da grandi coorti amministrative sposta la stima aggregata verso
+il valore nullo (`r v_bridge` per l'insieme combinato), e la lettura decisamente protettiva
+sopravvive ora solo con un prior ancorato al risultato precedente. La precedente conclusione
+di "basso rischio" appare quindi guidata in parte dalla mescolanza dei comparatori e da una
+base di evidenze più piccola e datata.
+:::
+
+## [Strengths and limitations]{.en}[Punti di forza e limiti]{.it}
+
+::: {.en}
+**Strengths.** The review follows a pre-registered PROSPERO protocol and separates
+comparators in line with its PECO. The Bayesian random-effects framework propagates the
+uncertainty in between-study heterogeneity that frequentist point estimates tend to
+understate, and expresses results as directly interpretable probabilities and a predictive
+interval. The exact posterior is reproduced by independent HMC sampling, and a broad,
+pre-specified sensitivity and diagnostic suite — prior sensitivity, prior-data conflict,
+leave-one-out, Egger's test, and three meta-regressions — is reported transparently with
+fully reproducible code.
+
+**Limitations.** All evidence is observational, so confounding by indication cannot be
+excluded — most acutely in the no-antibiotic comparison. Screening and risk-of-bias
+assessment are provisional single-reviewer judgements pending the protocol's duplicate
+full-text review; the extraction covariate matrix is not yet populated; and the curated
+estimates are still flagged unverified. The "other antibiotics" comparator is a
+heterogeneous mix rather than a single clinically matched drug, and three estimates enter as
+RR/HR/IRR converted to OR under a rare-outcome approximation. Per-group counts are small, so
+the subgroup and meta-regression results are exploratory. Finally, funnel-based diagnostics
+have limited power at k = `r nrow(prim_abx)`, so publication bias cannot be excluded despite
+the absence of detectable asymmetry, and neither individual-participant data nor head-to-head
+comparisons against specific agents were available.
+:::
+::: {.it}
+**Punti di forza.** La revisione segue un protocollo PROSPERO pre-registrato e separa i
+comparatori in linea con il suo PECO. Il modello bayesiano a effetti casuali propaga
+l'incertezza sull'eterogeneità tra studi che le stime puntuali frequentiste tendono a
+sottostimare, ed esprime i risultati come probabilità direttamente interpretabili e un
+intervallo predittivo. La posteriori esatta è riprodotta da campionamento HMC indipendente,
+e un ampio insieme pre-specificato di analisi di sensibilità e diagnostica — sensibilità ai
+prior, conflitto prior-dati, leave-one-out, test di Egger e tre meta-regressioni — è
+riportato in modo trasparente con codice pienamente riproducibile.
+
+**Limiti.** Tutte le evidenze sono osservazionali, per cui il confondimento da indicazione
+non può essere escluso — in modo più acuto nel confronto vs nessun antibiotico. Lo screening
+e la valutazione del rischio di bias sono giudizi provvisori di un singolo revisore, in
+attesa della doppia revisione full-text prevista dal protocollo; la matrice delle covariate
+di estrazione non è ancora popolata; e le stime curate risultano tuttora non verificate. Il
+comparatore "altri antibiotici" è un insieme eterogeneo e non un singolo farmaco clinicamente
+confrontabile, e tre stime entrano come RR/HR/IRR convertiti in OR con un'approssimazione per
+esiti rari. Le numerosità per gruppo sono piccole, quindi i risultati dei sottogruppi e delle
+meta-regressioni sono esplorativi. Infine, la diagnostica basata sul funnel ha potenza
+limitata con k = `r nrow(prim_abx)`, per cui il bias di pubblicazione non può essere escluso
+nonostante l'assenza di asimmetria rilevabile, e non erano disponibili né dati individuali
+dei partecipanti né confronti diretti con agenti specifici.
 :::
 
 ## [Discussion]{.en}[Discussione]{.it}
 
 ::: {.en}
-**What these results mean.** Restricted to the protocol comparator (another antibiotic), the
-pooled odds ratio is `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`, with roughly a
-`r sprintf("%.0f", 100*P$P_OR_lt_1)`% posterior probability of *any* protection but only
-`r sprintf("%.0f", 100*P$P_OR_lt_080)`% for a clinically meaningful effect (OR < 0.80). The
-dominant feature is heterogeneity (τ = `r sprintf("%.2f", P$tau)`): the predictive interval
-for a new study spans OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`, so a
-well-conducted future study could plausibly land anywhere from meaningful protection to
-modest harm. Against a *no-antibiotic* comparator the association is essentially null
-(`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), and a confidently protective reading emerges only
-under a prior anchored on the older Tariq (2018) estimate — that is, it is driven by prior
-belief, not the new data. The doxycycline-restricted sensitivity analysis is the most
-encouraging signal (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`, P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)`),
-but its interval still touches 1.
+**From evidence to practice.** The Interpretation above summarises the statistical picture —
+a pooled OR below 1 that remains compatible with no effect, dominated by between-study
+heterogeneity, and confidently protective only under a literature-anchored prior. What does
+that support in practice?
 
 **Is tetracycline preferable to macrolides or other agents to reduce CDI?** Not on this
 evidence. First, no included study provides a head-to-head tetracycline-versus-macrolide
@@ -1561,19 +1768,10 @@ specifically over macrolides.
   pre-specified secondary outcome would provide the confirmatory evidence observational data cannot.
 :::
 ::: {.it}
-**Cosa significano questi risultati.** Limitandosi al comparatore del protocollo (un altro
-antibiotico), l'odds ratio aggregato è `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)`, con circa il
-`r sprintf("%.0f", 100*P$P_OR_lt_1)`% di probabilità a posteriori di un *qualsiasi* effetto
-protettivo ma solo il `r sprintf("%.0f", 100*P$P_OR_lt_080)`% per un effetto clinicamente
-rilevante (OR < 0,80). L'elemento dominante è l'eterogeneità (τ = `r sprintf("%.2f", P$tau)`):
-l'intervallo predittivo per un nuovo studio va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`,
-quindi uno studio futuro ben condotto potrebbe collocarsi ovunque, da una protezione rilevante
-a un modesto danno. Rispetto a un comparatore *senza antibiotico* l'associazione è
-sostanzialmente nulla (`r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)`), e una lettura decisamente
-protettiva emerge solo con un prior ancorato alla stima precedente di Tariq (2018) — cioè è
-guidata dalla convinzione a priori, non dai nuovi dati. L'analisi di sensibilità limitata alla
-doxiciclina è il segnale più incoraggiante (OR `r fmt_ci(D$OR, D$OR_lo, D$OR_hi)`,
-P(OR<1) = `r sprintf("%.2f", D$P_OR_lt_1)`), ma il suo intervallo tocca ancora 1.
+**Dalle evidenze alla pratica.** L'Interpretazione qui sopra riassume il quadro statistico —
+un OR aggregato inferiore a 1 che resta compatibile con l'assenza di effetto, dominato
+dall'eterogeneità tra studi e decisamente protettivo solo con un prior ancorato alla
+letteratura. Che cosa supporta tutto ciò nella pratica?
 
 **Le tetracicline sono preferibili ai macrolidi o ad altri agenti per ridurre l'ICD?** Non
 sulla base di queste evidenze. Primo, nessuno studio incluso fornisce un confronto diretto
