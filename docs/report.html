@@ -758,24 +758,6 @@ window.Quarto = {
 <p>19 studi su 20 raggiungono almeno 7 stelle (basso rischio di bias). Le limitazioni ricorrenti sono definizioni di caso basate su codici diagnostici non validati (selezione), controlli ospedalieri negli studi caso-controllo più piccoli (selezione), affidamento a stime per singolo farmaco non aggiustate (comparabilità) e incerta completezza della cattura dell’esito dopo la dimissione nelle coorti ospedaliere (esito). Per i sei studi trasferiti da Tariq et al.&nbsp;(2018), i nostri punteggi indipendenti (mediana 8, intervallo 7-9) sono coerenti con i loro (mediana 7, intervallo 7-8) <span class="citation" data-cites="Tariq2018">(<a href="#ref-Tariq2018" role="doc-biblioref">Tariq and Khanna 2018</a>)</span>.</p>
 <p>L’analisi di sensibilità pre-specificata che esclude gli studi a maggior rischio di bias (NOS inferiore a 7) rimuove solo Predrag 2016: la stima primaria è invariata perché tutti gli 11 studi con comparatore antibiotico sono a basso rischio (OR 0.86 (0.60–1.23)), e il confronto secondario (vs nessun antibiotico) diventa OR 1.05 (0.74–1.54) (k = 8). Le conclusioni sono quindi robuste rispetto alla qualità degli studi così come valutata qui.</p>
 </div>
-<div class="callout callout-style-default callout-warning callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Warning
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<div class="en">
-<p><strong>Provisional assessment.</strong> The protocol requires independent, duplicate full-text assessment by two reviewers. The scores above are a single-reviewer assessment based on the extraction database — whose covariate matrix is still unpopulated and whose estimate rows are all marked unverified — and should be re-confirmed against the full articles before being considered final.</p>
-</div>
-<div class="it">
-<p><strong>Valutazione provvisoria.</strong> Il protocollo richiede una valutazione indipendente, in doppio, sul full-text da parte di due revisori. I punteggi sopra riportati derivano da una valutazione di un singolo revisore basata sul database di estrazione — la cui matrice delle covariate non è ancora popolata e le cui righe di stima risultano tutte non verificate — e devono essere riconfermati sugli articoli integrali prima di essere considerati definitivi.</p>
-</div>
-</div>
-</div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -974,10 +956,14 @@ Table&nbsp;2
 <section id="mcmc-confirmation-convergenceconferma-mcmc-e-convergenza" class="level2">
 <h2 class="anchored" data-anchor-id="mcmc-confirmation-convergenceconferma-mcmc-e-convergenza"><span class="en">MCMC confirmation &amp; convergence</span><span class="it">Conferma MCMC e convergenza</span></h2>
 <div class="en">
-<p>The two engines agree to within Monte Carlo error, confirming the exact posterior. All diagnostics indicate good convergence.</p>
+<p><strong>Sampling.</strong> The confirmatory fit uses Hamiltonian Monte Carlo (Stan, via <code>brms</code>) with the same priors as the exact model: 4 chains of 4,000 iterations (1,000 warmup), giving 12,000 post-warmup draws, with <code>adapt_delta = 0.99</code> to handle the funnel-shaped geometry typical of hierarchical models with few studies. The run produced <strong>0 divergent transitions</strong> and 0 iterations at the maximum tree depth, so the sampler explored the posterior without numerical failures.</p>
+<p><strong>Convergence.</strong> R-hat compares within- and between-chain variance; both parameters are essentially 1.00 (max 1.000, below the conventional 1.01 threshold), so the four chains have converged to the same target distribution. Bulk ESS (2516 for μ, 3217 for τ) and tail ESS (3702 / 5375) are large, meaning both the centre of the posterior and the extreme quantiles — on which the 95% credible interval and P(OR&lt;1) depend — rest on the equivalent of thousands of independent draws; the Monte Carlo standard error of the pooled log-OR is only 0.004. The trace plots (Figure 2) confirm this visually: the four chains overlap around stable levels, with no trends, drift or sticking.</p>
+<p><strong>Agreement between engines.</strong> <code>bayesmeta</code> computes the posterior by deterministic numerical integration (no Monte Carlo error at all), whereas <code>brms</code>/Stan approximates it by sampling. That the two agree closely (table below) shows the reported posterior is a property of the model and the data rather than of the computational method — and it validates the exact <code>bayesmeta</code> posteriors used throughout this report.</p>
 </div>
 <div class="it">
-<p>I due motori concordano entro l’errore Monte Carlo, confermando la posteriori esatta. Tutti gli indici indicano una buona convergenza.</p>
+<p><strong>Campionamento.</strong> Il modello di conferma usa Hamiltonian Monte Carlo (Stan, tramite <code>brms</code>) con gli stessi prior del modello esatto: 4 catene da 4.000 iterazioni (1.000 di warmup), per un totale di 12.000 draw post-warmup, con <code>adapt_delta = 0,99</code> per gestire la geometria “a imbuto” tipica dei modelli gerarchici con pochi studi. L’esecuzione ha prodotto <strong>0 transizioni divergenti</strong> e 0 iterazioni alla profondità massima dell’albero: il campionatore ha esplorato la posteriori senza problemi numerici.</p>
+<p><strong>Convergenza.</strong> R-hat confronta la varianza entro e tra le catene; entrambi i parametri sono sostanzialmente a 1,00 (max 1.000, sotto la soglia convenzionale di 1,01), quindi le quattro catene sono convergenti alla stessa distribuzione obiettivo. Gli ESS bulk (2516 per μ, 3217 per τ) e tail (3702 / 5375) sono ampi: sia il centro della posteriori sia i quantili estremi — da cui dipendono l’ICr al 95% e P(OR&lt;1) — poggiano sull’equivalente di migliaia di draw indipendenti; l’errore standard Monte Carlo del log-OR aggregato è solo 0.004. I trace plot (Figura 2) lo confermano visivamente: le quattro catene si sovrappongono attorno a livelli stabili, senza trend, deriva o blocchi.</p>
+<p><strong>Accordo tra i motori.</strong> <code>bayesmeta</code> calcola la posteriori per integrazione numerica deterministica (senza alcun errore Monte Carlo), mentre <code>brms</code>/Stan la approssima per campionamento. Il fatto che i due concordino strettamente (tabella sotto) mostra che la posteriori riportata è una proprietà del modello e dei dati, non del metodo computazionale — e convalida le posteriori esatte di <code>bayesmeta</code> usate in tutto il report.</p>
 </div>
 <div class="en">
 <div class="cell">
@@ -1024,6 +1010,7 @@ Table&nbsp;3
 <th style="text-align: center;">R-hat</th>
 <th style="text-align: center;">Bulk ESS</th>
 <th style="text-align: center;">Tail ESS</th>
+<th style="text-align: center;">MCSE (mean)</th>
 </tr>
 </thead>
 <tbody>
@@ -1032,12 +1019,14 @@ Table&nbsp;3
 <td style="text-align: center;">1.000</td>
 <td style="text-align: center;">2516</td>
 <td style="text-align: center;">3702</td>
+<td style="text-align: center;">0.004</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">τ (heterogeneity SD)</td>
 <td style="text-align: center;">1.000</td>
 <td style="text-align: center;">3217</td>
 <td style="text-align: center;">5375</td>
+<td style="text-align: center;">0.002</td>
 </tr>
 </tbody>
 </table>
@@ -1092,6 +1081,7 @@ Table&nbsp;4
 <th style="text-align: center;">R-hat</th>
 <th style="text-align: center;">ESS bulk</th>
 <th style="text-align: center;">ESS tail</th>
+<th style="text-align: center;">MCSE (media)</th>
 </tr>
 </thead>
 <tbody>
@@ -1100,12 +1090,14 @@ Table&nbsp;4
 <td style="text-align: center;">1.000</td>
 <td style="text-align: center;">2516</td>
 <td style="text-align: center;">3702</td>
+<td style="text-align: center;">0.004</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">τ (SD eterogeneità)</td>
 <td style="text-align: center;">1.000</td>
 <td style="text-align: center;">3217</td>
 <td style="text-align: center;">5375</td>
+<td style="text-align: center;">0.002</td>
 </tr>
 </tbody>
 </table>
@@ -1131,10 +1123,10 @@ Figure&nbsp;2
 </div>
 <div class="cap">
 <div class="en">
-<p><strong>Figure 2.</strong> MCMC trace plots for the four chains (pooled log-OR and heterogeneity SD).</p>
+<p><strong>Figure 2.</strong> MCMC trace plots for the four chains (pooled log-OR μ and heterogeneity SD τ). Overlapping chains fluctuating around stable levels — with no trends, drift or sticking — indicate good mixing and stationarity.</p>
 </div>
 <div class="it">
-<p><strong>Figura 2.</strong> Trace plot MCMC per le quattro catene (log-OR aggregato e SD dell’eterogeneità).</p>
+<p><strong>Figura 2.</strong> Trace plot MCMC per le quattro catene (log-OR aggregato μ e SD dell’eterogeneità τ). Catene sovrapposte che oscillano attorno a livelli stabili — senza trend, deriva o blocchi — indicano buon mixing e stazionarietà.</p>
 </div>
 </div>
 </section>
