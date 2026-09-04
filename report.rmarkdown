@@ -475,7 +475,7 @@ dell'accertamento tra i gruppi e il follow-up/non-risposta.
 ```{r rob-plot}
 #| fig-width: 6.5
 #| fig-height: 7
-rob_dat <- nos |>
+nos |>
   mutate(
     Selection = case_when(sel1 + sel2 + sel3 + sel4 >= 3 ~ "Low",
                           sel1 + sel2 + sel3 + sel4 == 2 ~ "Some concerns", TRUE ~ "High"),
@@ -489,15 +489,8 @@ rob_dat <- nos |>
   mutate(domain = factor(domain, levels = c("Selection", "Comparability",
                                             "Outcome / Exposure", "Overall")),
          rating = factor(rating, levels = c("Low", "Some concerns", "High")),
-         study  = reorder(study, total))
-
-# ggplot2 (>= 4.0) draws no legend key for a factor level absent from the
-# data; a "High" tile hidden beneath a real one keeps the red key visible
-rob_ghost <- rob_dat[1, ] |>
-  mutate(rating = factor("High", levels = c("Low", "Some concerns", "High")))
-
-ggplot(rob_dat, aes(x = domain, y = study, fill = rating)) +
-  geom_tile(data = rob_ghost, colour = "white", linewidth = 0.8) +
+         study  = reorder(study, total)) |>
+  ggplot(aes(x = domain, y = study, fill = rating)) +
   geom_tile(colour = "white", linewidth = 0.8) +
   scale_fill_manual(values = c("Low" = "#4C9A62", "Some concerns" = "#E9B44C",
                                "High" = "#C0504D"), drop = FALSE) +
@@ -557,6 +550,23 @@ gli 11 studi con comparatore antibiotico sono a basso rischio (OR
 quindi robuste rispetto alla qualità degli studi così come valutata qui.
 :::
 
+::: {.callout-warning}
+::: {.en}
+**Provisional assessment.** The protocol requires independent, duplicate full-text
+assessment by two reviewers. The scores above are a single-reviewer assessment based on
+the extraction database — whose covariate matrix is still unpopulated and whose estimate
+rows are all marked unverified — and should be re-confirmed against the full articles
+before being considered final.
+:::
+::: {.it}
+**Valutazione provvisoria.** Il protocollo richiede una valutazione indipendente, in
+doppio, sul full-text da parte di due revisori. I punteggi sopra riportati derivano da
+una valutazione di un singolo revisore basata sul database di estrazione — la cui matrice
+delle covariate non è ancora popolata e le cui righe di stima risultano tutte non
+verificate — e devono essere riconfermati sugli articoli integrali prima di essere
+considerati definitivi.
+:::
+:::
 
 ::: {.callout-note}
 ::: {.en}
@@ -1226,7 +1236,7 @@ bind_rows(dsn  |> mutate(panel = "Study design (k = 11)"),
   ggplot(aes(OR, group)) +
   geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
   geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_blue, size = 0.45) +
-  facet_wrap(~panel, ncol = 1, scales = "free_y") +
+  facet_grid(panel ~ ., scales = "free_y", space = "free_y", switch = "y") +
   scale_x_log10(breaks = c(0.3, 0.5, 0.8, 1, 1.5, 2)) +
   labs(x = "Odds ratio (log scale)", y = NULL) +
   theme_jama()
@@ -1600,3 +1610,4 @@ Reproducible source: `report.qmd`. Bayesian normal-normal hierarchical model (`b
 Sorgente riproducibile: `report.qmd`. Modello gerarchico normale-normale bayesiano (`bayesmeta`, posteriori numerica esatta), confermato con MCMC `brms`/Stan. Ri-generare con `quarto render report.qmd`.
 :::
 :::
+
