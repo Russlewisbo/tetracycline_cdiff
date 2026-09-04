@@ -21,12 +21,17 @@ execute:
   message: false
 ---
 
-```{r setup}
+```{r packages}
+# Packages must load in an uncached chunk: on a cache hit the setup chunk is
+# not re-executed, so library() calls placed there would never run.
 library(tidyverse)
 library(bayesmeta)
 library(metafor)
 library(knitr)
+```
 
+```{r setup}
+#| cache: true
 es   <- read_csv("tbl_es_analysis_ready.csv", show_col_types = FALSE)
 prim <- es |> filter(use_in_primary == "Yes")
 
@@ -94,6 +99,11 @@ nonor <- c("Doernberg2012", "Dial2008", "Brown2016")
 sens_prim_or <- summ(fit_prior(prim_abx   |> filter(!study_id %in% nonor), 0, 1))
 sens_sec_or  <- summ(fit_prior(prim_noabx |> filter(!study_id %in% nonor), 0, 1))
 
+# ---- Display helpers ----
+fmt_ci <- function(x, lo, hi) sprintf("%.2f (%.2f\u2013%.2f)", x, lo, hi)
+getp   <- function(p) as.list(res_abx[res_abx$prior == p, ])
+P <- getp("primary")
+
 # ---- Illustrative absolute risks for the GRADE summary-of-findings table ----
 or2risk <- function(or, p0) 1000 * or * p0 / (1 - p0 + or * p0)
 abs_prim <- sprintf("%.0f vs 20 per 1,000 (%.0f\u2013%.0f)",
@@ -111,11 +121,6 @@ subs <- list(
 )
 res_sub <- imap_dfr(subs, ~ summ(fit_prior(.x, 0, 1)) |>
                       mutate(analysis = .y, k = nrow(.x), .before = 1))
-
-# ---- Display helpers ----
-fmt_ci <- function(x, lo, hi) sprintf("%.2f (%.2f\u2013%.2f)", x, lo, hi)
-getp   <- function(p) as.list(res_abx[res_abx$prior == p, ])
-P <- getp("primary")
 
 # ---- Small-study effects (frequentist diagnostics) ----
 rma_abx <- rma(yi = prim_abx$yi, vi = prim_abx$sei^2, method = "REML")
@@ -545,7 +550,7 @@ uno studio futuro va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`.
 :::
 :::
 
-```{r fig-forest, fig.width=8, fig.height=5.2}
+```{r fig-forest, fig.width=8, fig.height=5.2, cache=TRUE}
 pooled <- getp("primary")
 fit_prim <- bayesmeta(prim_abx$yi, prim_abx$sei, labels = prim_abx$reference,
                       mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn)
