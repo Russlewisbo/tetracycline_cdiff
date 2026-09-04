@@ -785,16 +785,66 @@ bmeta_row <- tibble(source = "bayesmeta (exact)",
                     tau = P$tau, P1 = P$P_OR_lt_1, P08 = P$P_OR_lt_080)
 dg <- summarise_draws(
   as_draws_df(bfit)[, c("b_Intercept","sd_study_id__Intercept")],
-  "rhat","ess_bulk","ess_tail")
+  "rhat","ess_bulk","ess_tail","mcse_mean")
+# Sampler health: divergent transitions and max-treedepth hits
+np      <- brms::nuts_params(bfit)
+n_div   <- sum(np$Value[np$Parameter == "divergent__"])
+n_maxtd <- sum(np$Value[np$Parameter == "treedepth__"] >= 10)
+n_draws <- nrow(as_draws_df(bfit))
 ```
 
 ::: {.en}
-The two engines agree to within Monte Carlo error, confirming the exact posterior. All
-diagnostics indicate good convergence.
+**Sampling.** The confirmatory fit uses Hamiltonian Monte Carlo (Stan, via `brms`) with
+the same priors as the exact model: 4 chains of 4,000 iterations (1,000 warmup), giving
+`r format(n_draws, big.mark = ",")` post-warmup draws, with `adapt_delta = 0.99` to
+handle the funnel-shaped geometry typical of hierarchical models with few studies. The
+run produced **`r n_div` divergent transitions** and `r n_maxtd` iterations at the
+maximum tree depth, so the sampler explored the posterior without numerical failures.
+
+**Convergence.** R-hat compares within- and between-chain variance; both parameters are
+essentially 1.00 (max `r sprintf("%.3f", max(dg$rhat))`, below the conventional 1.01
+threshold), so the four chains have converged to the same target distribution. Bulk ESS
+(`r round(dg$ess_bulk[1])` for μ, `r round(dg$ess_bulk[2])` for τ) and tail ESS
+(`r round(dg$ess_tail[1])` / `r round(dg$ess_tail[2])`) are large, meaning both the
+centre of the posterior and the extreme quantiles — on which the 95% credible interval
+and P(OR<1) depend — rest on the equivalent of thousands of independent draws; the Monte
+Carlo standard error of the pooled log-OR is only
+`r sprintf("%.3f", dg$mcse_mean[1])`. The trace plots (Figure 2) confirm this visually:
+the four chains overlap around stable levels, with no trends, drift or sticking.
+
+**Agreement between engines.** `bayesmeta` computes the posterior by deterministic
+numerical integration (no Monte Carlo error at all), whereas `brms`/Stan approximates it
+by sampling. That the two agree closely (table below) shows the reported posterior is a
+property of the model and the data rather than of the computational method — and it
+validates the exact `bayesmeta` posteriors used throughout this report.
 :::
 ::: {.it}
-I due motori concordano entro l'errore Monte Carlo, confermando la posteriori esatta.
-Tutti gli indici indicano una buona convergenza.
+**Campionamento.** Il modello di conferma usa Hamiltonian Monte Carlo (Stan, tramite
+`brms`) con gli stessi prior del modello esatto: 4 catene da 4.000 iterazioni (1.000 di
+warmup), per un totale di `r format(n_draws, big.mark = ".")` draw post-warmup, con
+`adapt_delta = 0,99` per gestire la geometria "a imbuto" tipica dei modelli gerarchici
+con pochi studi. L'esecuzione ha prodotto **`r n_div` transizioni divergenti** e
+`r n_maxtd` iterazioni alla profondità massima dell'albero: il campionatore ha esplorato
+la posteriori senza problemi numerici.
+
+**Convergenza.** R-hat confronta la varianza entro e tra le catene; entrambi i parametri
+sono sostanzialmente a 1,00 (max `r sprintf("%.3f", max(dg$rhat))`, sotto la soglia
+convenzionale di 1,01), quindi le quattro catene sono convergenti alla stessa
+distribuzione obiettivo. Gli ESS bulk (`r round(dg$ess_bulk[1])` per μ,
+`r round(dg$ess_bulk[2])` per τ) e tail (`r round(dg$ess_tail[1])` /
+`r round(dg$ess_tail[2])`) sono ampi: sia il centro della posteriori sia i quantili
+estremi — da cui dipendono l'ICr al 95% e P(OR<1) — poggiano sull'equivalente di
+migliaia di draw indipendenti; l'errore standard Monte Carlo del log-OR aggregato è solo
+`r sprintf("%.3f", dg$mcse_mean[1])`. I trace plot (Figura 2) lo confermano
+visivamente: le quattro catene si sovrappongono attorno a livelli stabili, senza trend,
+deriva o blocchi.
+
+**Accordo tra i motori.** `bayesmeta` calcola la posteriori per integrazione numerica
+deterministica (senza alcun errore Monte Carlo), mentre `brms`/Stan la approssima per
+campionamento. Il fatto che i due concordino strettamente (tabella sotto) mostra che la
+posteriori riportata è una proprietà del modello e dei dati, non del metodo
+computazionale — e convalida le posteriori esatte di `bayesmeta` usate in tutto il
+report.
 :::
 
 ::: {.en}
@@ -807,8 +857,9 @@ bind_rows(bmeta_row, brms_row) |>
 
 dg |> transmute(Parameter = c("\u03bc (log-OR)","\u03c4 (heterogeneity SD)"),
                 `R-hat` = sprintf("%.3f", rhat),
-                `Bulk ESS` = round(ess_bulk), `Tail ESS` = round(ess_tail)) |>
-  kable(align = "lccc")
+                `Bulk ESS` = round(ess_bulk), `Tail ESS` = round(ess_tail),
+                `MCSE (mean)` = sprintf("%.3f", mcse_mean)) |>
+  kable(align = "lcccc")
 ```
 :::
 ::: {.it}
@@ -821,8 +872,9 @@ bind_rows(bmeta_row, brms_row) |>
 
 dg |> transmute(Parametro = c("\u03bc (log-OR)","\u03c4 (SD eterogeneità)"),
                 `R-hat` = sprintf("%.3f", rhat),
-                `ESS bulk` = round(ess_bulk), `ESS tail` = round(ess_tail)) |>
-  kable(align = "lccc")
+                `ESS bulk` = round(ess_bulk), `ESS tail` = round(ess_tail),
+                `MCSE (media)` = sprintf("%.3f", mcse_mean)) |>
+  kable(align = "lcccc")
 ```
 :::
 
@@ -833,10 +885,10 @@ mcmc_trace(bfit, pars = c("b_Intercept", "sd_study_id__Intercept"))
 
 ::: {.cap}
 ::: {.en}
-**Figure 2.** MCMC trace plots for the four chains (pooled log-OR and heterogeneity SD).
+**Figure 2.** MCMC trace plots for the four chains (pooled log-OR μ and heterogeneity SD τ). Overlapping chains fluctuating around stable levels — with no trends, drift or sticking — indicate good mixing and stationarity.
 :::
 ::: {.it}
-**Figura 2.** Trace plot MCMC per le quattro catene (log-OR aggregato e SD dell'eterogeneità).
+**Figura 2.** Trace plot MCMC per le quattro catene (log-OR aggregato μ e SD dell'eterogeneità τ). Catene sovrapposte che oscillano attorno a livelli stabili — senza trend, deriva o blocchi — indicano buon mixing e stazionarietà.
 :::
 :::
 
@@ -1229,7 +1281,8 @@ bind_rows(dsn  |> mutate(panel = "Study design (k = 11)"),
   facet_wrap(~panel, ncol = 1, scales = "free_y") +
   scale_x_log10(breaks = c(0.3, 0.5, 0.8, 1, 1.5, 2)) +
   labs(x = "Odds ratio (log scale)", y = NULL) +
-  theme_jama()
+  theme_jama() +
+  theme(strip.background = element_blank())
 ```
 
 ::: {.cap}

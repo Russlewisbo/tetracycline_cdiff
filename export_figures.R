@@ -100,6 +100,27 @@ ctx20 <- tibble(care_context = c("CA","HA","mixed"),
   OR_lo = exp(mr20$summary["95% lower", c("CA","HA","mixed")]),
   OR_hi = exp(mr20$summary["95% upper", c("CA","HA","mixed")]))
 
+# Design & adjustment meta-regressions
+prim_abx <- prim_abx |>
+  mutate(design2 = if_else(str_detect(study_design, "case_control"), "case_control", "cohort"))
+Xd  <- model.matrix(~ 0 + design2, data = prim_abx); colnames(Xd) <- c("case_control","cohort")
+mrd <- bmr(y = prim_abx$yi, sigma = prim_abx$sei, labels = prim_abx$reference, X = Xd,
+           tau.prior = hn, beta.prior.mean = c(0, 0), beta.prior.sd = c(1, 1))
+dsn <- tibble(group = c("Case-control","Cohort"),
+  k     = as.integer(colSums(Xd)),
+  OR    = exp(mrd$summary["median",    c("case_control","cohort")]),
+  OR_lo = exp(mrd$summary["95% lower", c("case_control","cohort")]),
+  OR_hi = exp(mrd$summary["95% upper", c("case_control","cohort")]))
+prim <- prim |> mutate(adj2 = if_else(as.logical(adjusted), "adjusted", "unadjusted"))
+Xa  <- model.matrix(~ 0 + adj2, data = prim); colnames(Xa) <- c("adjusted","unadjusted")
+mra <- bmr(y = prim$yi, sigma = prim$sei, labels = prim$reference, X = Xa,
+           tau.prior = hn, beta.prior.mean = c(0, 0), beta.prior.sd = c(1, 1))
+adjt <- tibble(group = c("Adjusted","Unadjusted"),
+  k     = as.integer(colSums(Xa)),
+  OR    = exp(mra$summary["median",    c("adjusted","unadjusted")]),
+  OR_lo = exp(mra$summary["95% lower", c("adjusted","unadjusted")]),
+  OR_hi = exp(mra$summary["95% upper", c("adjusted","unadjusted")]))
+
 # brms fit (precomputed)
 library(brms)
 bfit <- readRDS("brms_fit_primary.rds")
@@ -236,8 +257,23 @@ fig6 <- bind_rows(ctx |> mutate(set = "Primary (k=11)"),
   theme_jama()
 save_fig(fig6, "fig6_care_context.png", 7.5, 3.4)
 
-# ---- Figure 7: Tariq comparison (fig-tariq, 8 x 3.2) ----
-fig7 <- comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
+# ---- Figure 7: design & adjustment meta-regressions (fig-metareg2, 7.5 x 3.4) ----
+fig7 <- bind_rows(dsn  |> mutate(panel = "Study design (k = 11)"),
+                  adjt |> mutate(panel = "Adjustment status (k = 20)")) |>
+  mutate(panel = factor(panel, levels = c("Study design (k = 11)", "Adjustment status (k = 20)")),
+         group = factor(group, levels = c("Cohort", "Case-control", "Unadjusted", "Adjusted"))) |>
+  ggplot(aes(OR, group)) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_blue, size = 0.45) +
+  facet_wrap(~panel, ncol = 1, scales = "free_y") +
+  scale_x_log10(breaks = c(0.3, 0.5, 0.8, 1, 1.5, 2)) +
+  labs(x = "Odds ratio (log scale)", y = NULL) +
+  theme_jama() +
+  theme(strip.background = element_blank())
+save_fig(fig7, "fig7_design_adjustment.png", 7.5, 3.4)
+
+# ---- Figure 8: Tariq comparison (fig-tariq, 8 x 3.2) ----
+fig8 <- comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
   ggplot(aes(OR, analysis)) +
   geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
   geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_navy, size = 0.5) +
@@ -246,11 +282,11 @@ fig7 <- comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
   scale_x_log10(breaks = c(0.4, 0.5, 0.6, 0.8, 1, 1.2)) +
   labs(x = "Pooled OR (log scale)", y = NULL) +
   theme_jama()
-save_fig(fig7, "fig7_tariq_comparison.png", 8, 3.2)
+save_fig(fig8, "fig8_tariq_comparison.png", 8, 3.2)
 
-# ---- Figure 8: risk-of-bias traffic light (rob-plot in report.qmd) ----
+# ---- Figure 9: risk-of-bias traffic light (rob-plot in report.qmd) ----
 nos <- read_csv("nos_assessment.csv", show_col_types = FALSE)
-fig8 <- nos |>
+rob_dat <- nos |>
   mutate(
     Selection = case_when(sel1 + sel2 + sel3 + sel4 >= 3 ~ "Low",
                           sel1 + sel2 + sel3 + sel4 == 2 ~ "Some concerns", TRUE ~ "High"),
@@ -264,8 +300,15 @@ fig8 <- nos |>
   mutate(domain = factor(domain, levels = c("Selection", "Comparability",
                                             "Outcome / Exposure", "Overall")),
          rating = factor(rating, levels = c("Low", "Some concerns", "High")),
-         study  = reorder(study, total)) |>
-  ggplot(aes(x = domain, y = study, fill = rating)) +
+         study  = reorder(study, total))
+
+# ggplot2 (>= 4.0) draws no legend key for a factor level absent from the
+# data; a "High" tile hidden beneath a real one keeps the red key visible
+rob_ghost <- rob_dat[1, ] |>
+  mutate(rating = factor("High", levels = c("Low", "Some concerns", "High")))
+
+fig9 <- ggplot(rob_dat, aes(x = domain, y = study, fill = rating)) +
+  geom_tile(data = rob_ghost, colour = "white", linewidth = 0.8) +
   geom_tile(colour = "white", linewidth = 0.8) +
   scale_fill_manual(values = c("Low" = "#4C9A62", "Some concerns" = "#E9B44C",
                                "High" = "#C0504D"), drop = FALSE) +
@@ -273,6 +316,6 @@ fig8 <- nos |>
   theme_jama() +
   theme(panel.grid = element_blank(), axis.line = element_blank(),
         axis.ticks = element_blank(), legend.position = "bottom")
-save_fig(fig8, "fig8_rob_traffic_light.png", 7, 7)
+save_fig(fig9, "fig9_rob_traffic_light.png", 7, 7)
 
 message("Done: ", paste(list.files("figures", pattern = "\\.png$"), collapse = ", "))
