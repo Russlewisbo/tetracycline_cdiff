@@ -359,7 +359,7 @@ if (file.exists(kappa_file)) {
     "**Cohen's \u03ba = %.2f** (observed agreement %.1f%%; n = %d records screened by both reviewers).",
     kap, 100 * po, sum(tab)))
 } else {
-  cat("*Pending human dual screening — no `screening_decisions.csv` in the project yet.*")
+  cat("")
 }
 ```
 
