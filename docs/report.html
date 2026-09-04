@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.35">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -13,10 +13,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -59,10 +62,10 @@ div.csl-indent {
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-46f66b053e56abd73bb6e954d61a315b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-158031087360bce0ff56dc785ce39e06.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6ac2aec46ad7f46b16024ee4409aa65c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -92,7 +95,7 @@ div.csl-indent {
 }</script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -240,16 +243,6 @@ window.Quarto = {
 <p><strong>Flusso PRISMA 2020.</strong> Diagramma PRISMA 2020 canonico (generato con il pacchetto R <code>PRISMA2020</code>). I conteggi di identificazione e deduplicazione sono validati (2.926 record da database + 1 registro + 95 da citation searching di Tariq 2018; 1.452 duplicati rimossi). I conteggi della fase di screening sono <em>provvisori</em>, ricostruiti dal secondo screening AI di Elicit in attesa del doppio screening manuale secondo il protocollo (<code>PRISMA_flow_data.xlsx</code>): braccio database/registri 1.475 sottoposti a screening → 40 valutati → 11 esclusioni full-text; i 95 report da altri metodi (citation searching) non hanno prodotto ulteriori studi eleggibili. Dei 35 studi inclusi (29 nuovi + 6 trasferiti da Tariq 2018), 20 contribuiscono con una stima curata alla meta-analisi bayesiana: <strong>11 nel confronto primario</strong> (tetracicline vs altri antibiotici) e <strong>9 nel confronto secondario</strong> (tetracicline vs nessun antibiotico).</p>
 </div>
 </div>
-</section>
-<section id="inter-rater-agreement-screeningconcordanza-tra-revisori-screening" class="level2">
-<h2 class="anchored" data-anchor-id="inter-rater-agreement-screeningconcordanza-tra-revisori-screening"><span class="en">Inter-rater agreement (screening)</span><span class="it">Concordanza tra revisori (screening)</span></h2>
-<div class="en">
-<p>The protocol (§16) requires two reviewers to screen titles/abstracts independently, with agreement reported as Cohen’s κ. This is <strong>pending human dual screening</strong>: the current screening counts in the PRISMA flow are provisional (reconstructed from the Elicit second-screen), so no two-reviewer decision log yet exists. The chunk below computes κ automatically once the log (<code>screening_decisions.csv</code>, with columns <code>reviewer1</code> and <code>reviewer2</code> holding include/exclude decisions per record) is added to the project.</p>
-</div>
-<div class="it">
-<p>Il protocollo (§16) richiede che due revisori effettuino lo screening di titoli/abstract in modo indipendente, riportando la concordanza come κ di Cohen. Questo è <strong>in attesa del doppio screening manuale</strong>: i conteggi di screening nel flusso PRISMA sono provvisori (ricostruiti dal secondo screening di Elicit), quindi non esiste ancora un registro delle decisioni dei due revisori. Il blocco seguente calcola κ automaticamente quando il registro (<code>screening_decisions.csv</code>, con colonne <code>reviewer1</code> e <code>reviewer2</code> contenenti le decisioni include/exclude per ciascun record) viene aggiunto al progetto.</p>
-</div>
-<p><em>Pending human dual screening — no <code>screening_decisions.csv</code> in the project yet.</em></p>
 </section>
 <section id="table-1.-characteristics-of-included-studiestabella-1.-caratteristiche-degli-studi-inclusi" class="level2">
 <h2 class="anchored" data-anchor-id="table-1.-characteristics-of-included-studiestabella-1.-caratteristiche-degli-studi-inclusi"><span class="en">Table 1. Characteristics of included studies</span><span class="it">Tabella 1. Caratteristiche degli studi inclusi</span></h2>
@@ -770,24 +763,6 @@ Warning
 </div>
 <div class="it">
 <p><strong>Valutazione provvisoria.</strong> Il protocollo richiede una valutazione indipendente, in doppio, sul full-text da parte di due revisori. I punteggi sopra riportati derivano da una valutazione di un singolo revisore basata sul database di estrazione — la cui matrice delle covariate non è ancora popolata e le cui righe di stima risultano tutte non verificate — e devono essere riconfermati sugli articoli integrali prima di essere considerati definitivi.</p>
-</div>
-</div>
-</div>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<div class="en">
-<p><strong>Protocol deviation — no randomised trials included.</strong> The protocol pre-specified RCTs as an eligible design, with a study-design stratification (observational vs RCT) and a Cochrane <strong>RoB 2</strong> appraisal for any trials. No RCT met the inclusion criteria: all 20 studies in the synthesis are observational. The observational-vs-RCT stratum and the RoB 2 appraisal are therefore not applicable and were not performed, and the design meta-regression is restricted to observational designs (case-control vs cohort).</p>
-</div>
-<div class="it">
-<p><strong>Deviazione dal protocollo — nessuno studio randomizzato incluso.</strong> Il protocollo prevedeva gli RCT tra i disegni eleggibili, con una stratificazione per disegno (osservazionale vs RCT) e la valutazione Cochrane <strong>RoB 2</strong> per eventuali trial. Nessun RCT ha soddisfatto i criteri di inclusione: tutti i 20 studi della sintesi sono osservazionali. Lo strato osservazionale-vs-RCT e la valutazione RoB 2 non sono quindi applicabili e non sono stati eseguiti, e la meta-regressione per disegno è limitata ai disegni osservazionali (caso-controllo vs coorte).</p>
 </div>
 </div>
 </div>
@@ -1489,149 +1464,6 @@ Figure&nbsp;6
 </div>
 <div class="it">
 <p><strong>Figura 6.</strong> OR aggregati per contesto dalla meta-regressione bayesiana: set primario con comparatore antibiotico (k = 11, blu) e sensibilità sul set completo (k = 20, grigio).</p>
-</div>
-</div>
-</section>
-<section id="design-adjustment-meta-regressionmeta-regressione-per-disegno-e-aggiustamento" class="level2">
-<h2 class="anchored" data-anchor-id="design-adjustment-meta-regressionmeta-regressione-per-disegno-e-aggiustamento"><span class="en">Design &amp; adjustment meta-regression</span><span class="it">Meta-regressione per disegno e aggiustamento</span></h2>
-<div class="en">
-<p>Two further pre-specified Bayesian meta-regressions (exact, <code>bmr</code>) complete the covariate set named in the protocol (§19: context, design, adjustment). <strong>Study design</strong> is modelled on the primary antibiotic-comparator set (k = 11), collapsing designs to case-control (k = 6) versus cohort (k = 5). Cohort studies lean protective (OR 0.69 (0.42–1.14), P(OR&lt;1) = 0.93), whereas case-control studies straddle 1 (OR 1.05 (0.65–1.70), P(OR&lt;1) = 0.41) — the same design-related divergence flagged in the subgroup table. <strong>Adjustment status</strong> cannot be regressed within the primary set because all 11 estimates are covariate-adjusted; it is therefore assessed on the full primary set (k = 20; 14 adjusted, 6 unadjusted). Adjusted estimates are modestly protective (OR 0.89 (0.66–1.20)) while unadjusted estimates are null-to-slightly-adverse (OR 1.09 (0.62–1.92)), with heavily overlapping intervals that both cross 1 — so there is no sign that unadjusted studies inflate the protective signal (if anything, the reverse). Per-group counts are small and intervals wide, so both analyses are exploratory; residual heterogeneity persists (design τ = 0.52; adjustment τ = 0.50).</p>
-</div>
-<div class="it">
-<p>Due ulteriori meta-regressioni bayesiane pre-specificate (esatte, <code>bmr</code>) completano l’insieme di covariate indicato nel protocollo (§19: contesto, disegno, aggiustamento). Il <strong>disegno dello studio</strong> è modellato sul set primario con comparatore antibiotico (k = 11), raggruppando i disegni in caso-controllo (k = 6) vs coorte (k = 5). Gli studi di coorte tendono alla protezione (OR 0.69 (0.42–1.14), P(OR&lt;1) = 0.93), mentre i caso-controllo attraversano 1 (OR 1.05 (0.65–1.70), P(OR&lt;1) = 0.41) — la stessa divergenza legata al disegno evidenziata nella tabella dei sottogruppi. Lo <strong>stato di aggiustamento</strong> non può essere regredito nel set primario perché tutte le 11 stime sono aggiustate; viene quindi valutato sul set primario completo (k = 20; 14 aggiustate, 6 non aggiustate). Le stime aggiustate sono modestamente protettive (OR 0.89 (0.66–1.20)) mentre quelle non aggiustate sono nulle-o-lievemente-avverse (OR 1.09 (0.62–1.92)), con intervalli ampiamente sovrapposti che attraversano entrambi 1 — quindi non vi è segno che gli studi non aggiustati amplifichino il segnale protettivo (semmai il contrario). Le numerosità per gruppo sono piccole e gli intervalli ampi, quindi entrambe le analisi sono esplorative; l’eterogeneità residua permane (τ disegno = 0.52; τ aggiustamento = 0.50).</p>
-</div>
-<div class="en">
-<div class="cell">
-<div id="tbl-mr2-en" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-mr2-en-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;9
-</figcaption>
-<div aria-describedby="tbl-mr2-en-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
-<colgroup>
-<col style="width: 29%">
-<col style="width: 17%">
-<col style="width: 17%">
-<col style="width: 24%">
-<col style="width: 12%">
-</colgroup>
-<thead>
-<tr class="header">
-<th style="text-align: left;">Covariate</th>
-<th style="text-align: left;">Group</th>
-<th style="text-align: center;">Studies (k)</th>
-<th style="text-align: center;">OR (95% CrI)</th>
-<th style="text-align: center;">P(OR&lt;1)</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">Study design (k = 11)</td>
-<td style="text-align: left;">Case-control</td>
-<td style="text-align: center;">6</td>
-<td style="text-align: center;">1.05 (0.65–1.70)</td>
-<td style="text-align: center;">0.41</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Study design (k = 11)</td>
-<td style="text-align: left;">Cohort</td>
-<td style="text-align: center;">5</td>
-<td style="text-align: center;">0.69 (0.42–1.14)</td>
-<td style="text-align: center;">0.93</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Adjustment (k = 20)</td>
-<td style="text-align: left;">Adjusted</td>
-<td style="text-align: center;">14</td>
-<td style="text-align: center;">0.89 (0.66–1.20)</td>
-<td style="text-align: center;">0.79</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Adjustment (k = 20)</td>
-<td style="text-align: left;">Unadjusted</td>
-<td style="text-align: center;">6</td>
-<td style="text-align: center;">1.09 (0.62–1.92)</td>
-<td style="text-align: center;">0.39</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</figure>
-</div>
-</div>
-</div>
-<div class="it">
-<div class="cell">
-<div id="tbl-mr2-it" class="cell quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-mr2-it-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;10
-</figcaption>
-<div aria-describedby="tbl-mr2-it-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output-display">
-<table class="caption-top table table-sm table-striped small">
-<colgroup>
-<col style="width: 31%">
-<col style="width: 17%">
-<col style="width: 14%">
-<col style="width: 24%">
-<col style="width: 12%">
-</colgroup>
-<thead>
-<tr class="header">
-<th style="text-align: left;">Covariata</th>
-<th style="text-align: left;">Gruppo</th>
-<th style="text-align: center;">Studi (k)</th>
-<th style="text-align: center;">OR (ICr 95%)</th>
-<th style="text-align: center;">P(OR&lt;1)</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;">Disegno (k = 11)</td>
-<td style="text-align: left;">Case-control</td>
-<td style="text-align: center;">6</td>
-<td style="text-align: center;">1.05 (0.65–1.70)</td>
-<td style="text-align: center;">0.41</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Disegno (k = 11)</td>
-<td style="text-align: left;">Cohort</td>
-<td style="text-align: center;">5</td>
-<td style="text-align: center;">0.69 (0.42–1.14)</td>
-<td style="text-align: center;">0.93</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">Aggiustamento (k = 20)</td>
-<td style="text-align: left;">Adjusted</td>
-<td style="text-align: center;">14</td>
-<td style="text-align: center;">0.89 (0.66–1.20)</td>
-<td style="text-align: center;">0.79</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">Aggiustamento (k = 20)</td>
-<td style="text-align: left;">Unadjusted</td>
-<td style="text-align: center;">6</td>
-<td style="text-align: center;">1.09 (0.62–1.92)</td>
-<td style="text-align: center;">0.39</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</figure>
-</div>
-</div>
-</div>
-<div class="cap">
-<div class="en">
-<p><strong>Design and adjustment meta-regression.</strong> Pooled ORs per group (exact Bayesian <code>bmr</code>, cell-means coding). Design is modelled on the primary antibiotic-comparator set (k = 11); adjustment on the full primary set (k = 20), because all 11 primary-comparator estimates are adjusted. Both are exploratory given small per-group counts.</p>
-</div>
-<div class="it">
-<p><strong>Meta-regressione per disegno e aggiustamento.</strong> OR aggregati per gruppo (<code>bmr</code> bayesiano esatto, codifica cell-means). Il disegno è modellato sul set primario con comparatore antibiotico (k = 11); l’aggiustamento sul set primario completo (k = 20), poiché tutte le 11 stime con comparatore antibiotico sono aggiustate. Entrambe sono esplorative viste le piccole numerosità per gruppo.</p>
 </div>
 </div>
 </section>
