@@ -303,9 +303,8 @@ separately from the distinct question of tetracyclines versus *no antibiotic*, a
 the association within a Bayesian random-effects framework that makes the residual
 heterogeneity and uncertainty explicit.
 
-**Aim.** To quantify, and characterise the uncertainty around, the association between
-tetracycline exposure and incident CDI relative to other antibiotics, using an updated
-evidence base and a Bayesian random-effects meta-analysis.
+**Aim.** To determine whether, and with what certainty, tetracycline exposure is associated
+with a lower risk of incident CDI than other antibiotics — the question posed formally below.
 :::
 ::: {.it}
 L'infezione da *Clostridioides difficile* (ICD) è tra le infezioni correlate
@@ -335,9 +334,9 @@ separato dalla domanda distinta delle tetracicline versus *nessun antibiotico*, 
 l'associazione con un modello bayesiano a effetti casuali che rende esplicite l'eterogeneità
 e l'incertezza residue.
 
-**Obiettivo.** Quantificare, e caratterizzarne l'incertezza, l'associazione tra esposizione
-alle tetracicline e ICD incidente rispetto ad altri antibiotici, utilizzando una base di
-evidenze aggiornata e una meta-analisi bayesiana a effetti casuali.
+**Obiettivo.** Stabilire se, e con quale grado di certezza, l'esposizione alle tetracicline
+sia associata a un rischio di ICD incidente inferiore rispetto ad altri antibiotici — la
+domanda posta formalmente qui sotto.
 :::
 
 ## [Research question]{.en}[Domanda di ricerca]{.it}
