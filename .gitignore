@@ -10,3 +10,9 @@
 /report_cache/
 /report_files/
 /_freeze/
+
+# Stray root render artifacts (regenerated; not part of the published site)
+/report.html
+/report.rmarkdown
+/render_rerun.log
+/Preview_*.pdf
