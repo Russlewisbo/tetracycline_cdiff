@@ -18,7 +18,7 @@ execute:
   echo: false
   warning: false
   message: false
-  cache: true
+  freeze: auto
 ---
 
 ```{r packages}
@@ -31,7 +31,6 @@ library(knitr)
 ```
 
 ```{r setup}
-#| cache: true
 es   <- read_csv("tbl_es_analysis_ready.csv", show_col_types = FALSE)
 prim <- es |> filter(use_in_primary == "Yes")
 
@@ -414,7 +413,6 @@ allora la concordanza reale automaticamente.
 :::
 
 ```{r kappa, results='asis'}
-#| cache: false
 kappa_file <- "screening_decisions.csv"
 if (file.exists(kappa_file)) {
   kd  <- readr::read_csv(kappa_file, show_col_types = FALSE)
@@ -696,7 +694,7 @@ uno studio futuro va da OR `r sprintf("%.2f\u2013%.2f", P$pred_lo, P$pred_hi)`.
 :::
 :::
 
-```{r fig-forest, fig.width=8, fig.height=5.2, cache=TRUE}
+```{r fig-forest, fig.width=8, fig.height=5.2}
 pooled <- getp("primary")
 fit_prim <- bayesmeta(prim_abx$yi, prim_abx$sei, labels = prim_abx$reference,
                       mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn)

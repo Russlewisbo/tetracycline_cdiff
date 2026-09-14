@@ -9,7 +9,7 @@
 # Generated build artifacts (never track)
 /report_cache/
 /report_files/
-/_freeze/
+# NOTE: _freeze/ is intentionally committed so CI/site rebuilds reuse frozen results
 
 # Stray root render artifacts (regenerated; not part of the published site)
 /report.html
