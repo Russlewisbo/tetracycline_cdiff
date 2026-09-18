@@ -82,6 +82,25 @@ comp <- bind_rows(
   getp("primary") |> as_tibble() |>
     transmute(analysis = "This review, primary (Bayesian)", k = 11, OR, OR_lo, OR_hi))
 
+# Comparator decomposition of Tariq's six (primary prior, bayesmeta exact)
+dec_fit <- function(y, s)
+  summ(bayesmeta(y, s, mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn))
+cur_bdk <- prim |> filter(study_id %in% c("Baxter2008", "Doernberg2012", "Kuntz2011"))
+cur_ddt <- prim |> filter(study_id %in% c("Delaney2007", "Dial2008", "Tartof2015"))
+tar_ddt <- tariq |> filter(study %in% c("Delaney 2007", "Dial 2008", "Tartof 2015"))
+bm_m1 <- dec_fit(cur_bdk$yi, cur_bdk$sei)   # antibiotic comparators only
+bm_m2 <- dec_fit(cur_ddt$yi, cur_ddt$sei)   # no-antibiotic, curated inputs
+bm_m3 <- dec_fit(tar_ddt$yi, tar_ddt$sei)   # no-antibiotic, Tariq's inputs (Tartof 0.50)
+comp <- comp |>
+  mutate(group = "Recapitulation & evidence base") |>
+  bind_rows(
+    bm_m1 |> transmute(analysis = "Antibiotic comparators \u2014 Baxter, Doernberg, Kuntz (k = 3)",
+                       k = 3, OR, OR_lo, OR_hi, group = "Comparator split of Tariq's six"),
+    bm_m2 |> transmute(analysis = "No-antibiotic comparator, curated \u2014 Delaney, Dial, Tartof (k = 3)",
+                       k = 3, OR, OR_lo, OR_hi, group = "Comparator split of Tariq's six"),
+    bm_m3 |> transmute(analysis = "No-antibiotic comparator, Tariq inputs (Tartof = 0.50) (k = 3)",
+                       k = 3, OR, OR_lo, OR_hi, group = "Comparator split of Tariq's six"))
+
 # Care-context meta-regression
 Xc <- model.matrix(~ 0 + care_context, data = prim_abx); colnames(Xc) <- c("CA","HA","mixed")
 mr <- bmr(y = prim_abx$yi, sigma = prim_abx$sei, labels = prim_abx$reference, X = Xc,
@@ -273,16 +292,25 @@ fig7 <- bind_rows(dsn  |> mutate(panel = "Study design (k = 11)"),
 save_fig(fig7, "fig7_design_adjustment.png", 7.5, 3.4)
 
 # ---- Figure 8: Tariq comparison (fig-tariq, 8 x 3.2) ----
-fig8 <- comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
-  ggplot(aes(OR, analysis)) +
+fig8 <- comp |>
+  mutate(analysis = factor(analysis, levels = rev(analysis)),
+         group = factor(group, levels = c("Recapitulation & evidence base",
+                                          "Comparator split of Tariq's six")),
+         # nudge the two near-1.0 labels left so the parenthesis clears the point
+         lab_hjust = if_else(analysis %in% c("Tariq studies + 8 new studies",
+                                             "This review, primary (Bayesian)"), 0.85, 0.5)) |>
+  ggplot(aes(OR, analysis, colour = group)) +
   geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
-  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_navy, size = 0.5) +
-  geom_text(aes(label = sprintf("%.2f (%.2f-%.2f)", OR, OR_lo, OR_hi)),
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), size = 0.5) +
+  geom_text(aes(label = sprintf("%.2f (%.2f-%.2f)", OR, OR_lo, OR_hi), hjust = lab_hjust),
             vjust = -1, size = 3.2, colour = "#1A1A1A") +
-  scale_x_log10(breaks = c(0.4, 0.5, 0.6, 0.8, 1, 1.2)) +
-  labs(x = "Pooled OR (log scale)", y = NULL) +
+  scale_colour_manual(values = c("Recapitulation & evidence base" = jama_navy,
+                                 "Comparator split of Tariq's six" = jama_blue)) +
+  scale_x_log10(breaks = c(0.4, 0.5, 0.6, 0.8, 1, 1.2, 1.5)) +
+  labs(x = "Pooled OR (log scale)", y = NULL, colour = NULL) +
+  guides(colour = guide_legend(nrow = 2)) +
   theme_jama()
-save_fig(fig8, "fig8_tariq_comparison.png", 8, 3.2)
+save_fig(fig8, "fig8_tariq_comparison.png", 8, 5)
 
 # ---- Figure 9: risk-of-bias traffic light (rob-plot in report.qmd) ----
 nos <- read_csv("nos_assessment.csv", show_col_types = FALSE)

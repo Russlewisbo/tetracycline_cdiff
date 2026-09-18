@@ -155,6 +155,34 @@ comp <- bind_rows(
   getp("primary") |> as_tibble() |>
     transmute(analysis = "This review, primary (Bayesian)", k = 11, OR, OR_lo, OR_hi))
 
+# ---- Comparator decomposition of Tariq's six (primary prior, bayesmeta exact) ----
+# Splits Tariq's six studies along the comparator line, to test whether the
+# apparent protection is concentrated in the no-antibiotic arm (see section 4.4).
+# All three use the primary prior, so the rows are commensurable with the rest of
+# this figure. Curated inputs match Tariq's for all six studies except Tartof
+# (curated 0.84 vs Tariq's adjusted 0.50); model 3 substitutes Tariq's inputs.
+dec_fit <- function(y, s)
+  summ(bayesmeta(y, s, mu.prior.mean = 0, mu.prior.sd = 1, tau.prior = hn))
+cur_bdk <- prim |> filter(study_id %in% c("Baxter2008", "Doernberg2012", "Kuntz2011"))
+cur_ddt <- prim |> filter(study_id %in% c("Delaney2007", "Dial2008", "Tartof2015"))
+tar_ddt <- tariq |> filter(study %in% c("Delaney 2007", "Dial 2008", "Tartof 2015"))
+bm_m1 <- dec_fit(cur_bdk$yi, cur_bdk$sei)   # antibiotic comparators only
+bm_m2 <- dec_fit(cur_ddt$yi, cur_ddt$sei)   # no-antibiotic, curated inputs
+bm_m3 <- dec_fit(tar_ddt$yi, tar_ddt$sei)   # no-antibiotic, Tariq's inputs (Tartof 0.50)
+v_m1 <- fmt_ci(bm_m1$OR, bm_m1$OR_lo, bm_m1$OR_hi)
+v_m2 <- fmt_ci(bm_m2$OR, bm_m2$OR_lo, bm_m2$OR_hi)
+v_m3 <- fmt_ci(bm_m3$OR, bm_m3$OR_lo, bm_m3$OR_hi)
+
+comp <- comp |>
+  mutate(group = "Recapitulation & evidence base") |>
+  bind_rows(
+    bm_m1 |> transmute(analysis = "Antibiotic comparators \u2014 Baxter, Doernberg, Kuntz (k = 3)",
+                       k = 3, OR, OR_lo, OR_hi, group = "Comparator split of Tariq's six"),
+    bm_m2 |> transmute(analysis = "No-antibiotic comparator, curated \u2014 Delaney, Dial, Tartof (k = 3)",
+                       k = 3, OR, OR_lo, OR_hi, group = "Comparator split of Tariq's six"),
+    bm_m3 |> transmute(analysis = "No-antibiotic comparator, Tariq inputs (Tartof = 0.50) (k = 3)",
+                       k = 3, OR, OR_lo, OR_hi, group = "Comparator split of Tariq's six"))
+
 v_tariq_dl  <- fmt_ci(exp(coef(dl)), exp(dl$ci.lb), exp(dl$ci.ub))
 v_tariq_bay <- fmt_ci(bm_tariq$OR, bm_tariq$OR_lo, bm_tariq$OR_hi)
 v_tariq_p   <- sprintf("%.2f", bm_tariq$P_OR_lt_1)
@@ -1081,25 +1109,34 @@ bind_rows(dsn  |> mutate(Covariata = "Disegno (k = 11)"),
 **Perché la revisione aggiornata non trova una protezione netta?** Soprattutto per gli **studi aggiuntivi**. Aggiungendo gli otto nuovi studi con comparatore antibiotico ai sei di Tariq, l'OR aggregato passa da \~0,63 a `r v_bridge` (P(OR\<1) = `r v_bridge_p`) e l'eterogeneità circa raddoppia — e questo "ponte" coincide sostanzialmente con la nostra stima primaria. Le nuove evidenze sono dominate da coorti amministrative molto grandi (es. Carmichael, Miller, Watson, Webb, Boven), con stime vicine al valore nullo e peso sostanziale. Contribuiscono in via secondaria (i) il **metodo** (bayesiano vs DL), che allarga gli intervalli più che spostare il centro; e (ii) le **decisioni su comparatore e stime** — il protocollo separa "vs altri antibiotici" da "vs nessun antibiotico", per cui tre dei sei studi di Tariq (Delaney, Dial, Tartof) passano al set secondario, e la stima di Tartof differisce (OR aggiustato 0,50 di Tariq vs 0,84 non aggiustato nostro).
 :::
 
-```{r fig-tariq, fig.width=8, fig.height=3.2}
-comp |> mutate(analysis = factor(analysis, levels = rev(analysis))) |>
-  ggplot(aes(OR, analysis)) +
+```{r fig-tariq, fig.width=8, fig.height=5}
+comp |>
+  mutate(analysis = factor(analysis, levels = rev(analysis)),
+         group = factor(group, levels = c("Recapitulation & evidence base",
+                                          "Comparator split of Tariq's six")),
+         # nudge the two near-1.0 labels left so the parenthesis clears the point
+         lab_hjust = if_else(analysis %in% c("Tariq studies + 8 new studies",
+                                             "This review, primary (Bayesian)"), 0.85, 0.5)) |>
+  ggplot(aes(OR, analysis, colour = group)) +
   geom_vline(xintercept = 1, linetype = "dashed", colour = "#4D4D4D", linewidth = 0.4) +
-  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), colour = jama_navy, size = 0.5) +
-  geom_text(aes(label = sprintf("%.2f (%.2f-%.2f)", OR, OR_lo, OR_hi)),
+  geom_pointrange(aes(xmin = OR_lo, xmax = OR_hi), size = 0.5) +
+  geom_text(aes(label = sprintf("%.2f (%.2f-%.2f)", OR, OR_lo, OR_hi), hjust = lab_hjust),
             vjust = -1, size = 3.2, colour = "#1A1A1A") +
-  scale_x_log10(breaks = c(0.4, 0.5, 0.6, 0.8, 1, 1.2)) +
-  labs(x = "Pooled OR (log scale)", y = NULL) +
+  scale_colour_manual(values = c("Recapitulation & evidence base" = jama_navy,
+                                 "Comparator split of Tariq's six" = jama_blue)) +
+  scale_x_log10(breaks = c(0.4, 0.5, 0.6, 0.8, 1, 1.2, 1.5)) +
+  labs(x = "Pooled OR (log scale)", y = NULL, colour = NULL) +
+  guides(colour = guide_legend(nrow = 2)) +
   theme_jama()
 ```
 
 ::::: cap
 ::: en
-**Figure 8.** From Tariq to the updated review: recapitulation and stepwise decomposition of the difference.
+**Figure 8.** From Tariq to the updated review. Navy rows: recapitulation of Tariq's estimate and stepwise enlargement of the evidence base. Blue rows: decomposition of Tariq's six studies along the comparator line — the three antibiotic-comparator studies (Baxter, Doernberg, Kuntz) versus the three no-antibiotic-comparator studies (Delaney, Dial, Tartof), the latter shown with curated inputs and, for reference, with Tariq's own inputs (Tartof at the adjusted 0.50 rather than the curated 0.84). All models use the primary prior (μ ~ N(0, 1²), τ ~ Half-Normal(0, 0.5); exact `bayesmeta`).
 :::
 
 ::: it
-**Figura 8.** Da Tariq alla revisione aggiornata: recupero e decomposizione passo-passo della differenza.
+**Figura 8.** Da Tariq alla revisione aggiornata. Righe navy: recupero della stima di Tariq e ampliamento passo-passo della base di evidenze. Righe blu: decomposizione dei sei studi di Tariq lungo la linea del comparatore — i tre studi con comparatore antibiotico (Baxter, Doernberg, Kuntz) rispetto ai tre con comparatore "nessun antibiotico" (Delaney, Dial, Tartof), questi ultimi mostrati con gli input curati e, come riferimento, con gli input di Tariq (Tartof al valore aggiustato 0,50 anziché quello curato 0,84). Tutti i modelli usano il prior primario (μ ~ N(0, 1²), τ ~ Half-Normal(0, 0,5); `bayesmeta` esatto).
 :::
 :::::
 
@@ -1162,7 +1199,7 @@ Certainty was rated following the GRADE approach [@Guyatt2008GRADE]. Because all
 
 ::: en
 | Outcome: incident CDI | k | Pooled OR (95% CrI) | Illustrative absolute effect\* | Risk of bias | Inconsistency | Indirectness | Imprecision | Publication bias | Certainty |
-|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
 | Tetracyclines vs other antibiotics | 11 | `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)` | `r abs_prim` | Not seriousᵃ | Seriousᵇ | Not serious | Seriousᶜ | Undetectedᵈ | **Very low** |
 | Tetracyclines vs no antibiotic | 9 | `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)` | `r abs_sec` | Not seriousᵃ | Seriousᵇ | Seriousᵉ | Seriousᶜ | Undetectedᵈ | **Very low** |
 
@@ -1175,7 +1212,7 @@ La certezza è stata valutata secondo l'approccio GRADE [@Guyatt2008GRADE]. Poic
 
 ::: it
 | Esito: ICD incidente | k | OR aggregato (ICr 95%) | Effetto assoluto illustrativo\* | Rischio di bias | Inconsistenza | Indirettezza | Imprecisione | Bias di pubblicazione | Certezza |
-|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
 | Tetracicline vs altri antibiotici | 11 | `r fmt_ci(P$OR, P$OR_lo, P$OR_hi)` | `r abs_prim` | Non serioᵃ | Serioᵇ | Non serio | Serioᶜ | Non rilevatoᵈ | **Molto bassa** |
 | Tetracicline vs nessun antibiotico | 9 | `r fmt_ci(sec$OR, sec$OR_lo, sec$OR_hi)` | `r abs_sec` | Non serioᵃ | Serioᵇ | Serioᵉ | Serioᶜ | Non rilevatoᵈ | **Molto bassa** |
 
